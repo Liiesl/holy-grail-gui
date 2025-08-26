@@ -25,20 +25,29 @@ class CustomTextEditor(QTextEdit):
 
         if event.text() == '/':
             cursor = self.textCursor()
-            # Prevent popup if slash is not the first character on a line (optional)
-            if cursor.positionInBlock() != 0:
-                 super().keyPressEvent(event)
-                 return
-            
-            cursor_rect = self.cursorRect(cursor)
-            popup_pos = self.mapToGlobal(cursor_rect.bottomLeft())
-            self.slash_command_popup.move(popup_pos)
-            self.slash_command_popup.show()
-            self.slash_command_popup.setFocus()
-            self.slash_command_popup.list_widget.setCurrentRow(0)
-            return
+            pos_in_block = cursor.positionInBlock()
+            block_text = cursor.block().text()
+
+            # Condition 1: The slash is being typed on a new, empty line.
+            is_on_new_line = (len(block_text) == 0)
+
+            # Condition 2: The slash is surrounded by spaces or block boundaries.
+            char_before_is_space = (pos_in_block == 0 or block_text[pos_in_block - 1].isspace())
+            char_after_is_space = (pos_in_block == len(block_text) or (pos_in_block < len(block_text) and block_text[pos_in_block].isspace()))
+            is_surrounded_by_space = char_before_is_space and char_after_is_space
+
+            if is_on_new_line or is_surrounded_by_space:
+                cursor_rect = self.cursorRect(cursor)
+                popup_pos = self.mapToGlobal(cursor_rect.bottomLeft())
+                self.slash_command_popup.move(popup_pos)
+                self.slash_command_popup.show()
+                self.slash_command_popup.setFocus()
+                self.slash_command_popup.list_widget.setCurrentRow(0)
+                # We will still insert the slash, and remove it upon command execution
+                super().keyPressEvent(event)
+                return
         
-        if self.slash_command_popup.isVisible():
+        if self.slash_command_popup.isVisible() and event.text() != "/":
             self.slash_command_popup.hide()
 
         if event.text() in ['*', '_', '#']:
@@ -50,6 +59,8 @@ class CustomTextEditor(QTextEdit):
     def execute_slash_command(self, command):
         """Executes the selected slash command."""
         cursor = self.textCursor()
+        
+        # Remove the triggering '/' character
         cursor.deletePreviousChar()
 
         command = command.lower()
@@ -77,8 +88,8 @@ class CustomTextEditor(QTextEdit):
         # CORRECTED: Use QTextCursor.StartOfLine directly for the operation
         cursor.movePosition(QTextCursor.StartOfLine)
         
-        # CORRECTED: Use QTextCursor.EndOfLine for operation, and QTextCursor.MoveMode.KeepAnchor for mode
-        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveMode.KeepAnchor)
+        # CORRECTED: Use QTextCursor.EndOfLine for operation, and QTextCursor.KeepAnchor for mode
+        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
         line_text = cursor.selectedText()
 
         if line_text.startswith("# "):
@@ -110,7 +121,7 @@ class CustomTextEditor(QTextEdit):
             new_cursor = self.textCursor()
             new_cursor.setPosition(start - len(syntax))
             # This line was correct, it uses the MoveMode enum for the setPosition method
-            new_cursor.setPosition(end + len(syntax), QTextCursor.MoveMode.KeepAnchor)
+            new_cursor.setPosition(end + len(syntax), QTextCursor.KeepAnchor)
             new_cursor.removeSelectedText()
             new_cursor.insertText(selected_text)
         else:
