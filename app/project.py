@@ -63,3 +63,29 @@ class Project(QObject):
 
         # Create and return a new Project instance
         return Project(project_path)
+
+    def add_page(self, name):
+        """Adds a new page to the project."""
+        if name not in self.page_structure:
+            self.page_structure[name] = {}
+            with open(os.path.join(self.path, name), "w") as f:
+                f.write(f"# {name.replace('.hgmd', '')}\n")
+            self.save_config()
+
+    def rename_page(self, old_name, new_name):
+        """Renames a page in the project."""
+        if old_name in self.page_structure:
+            # Rename in page_structure
+            self.page_structure[new_name] = self.page_structure.pop(old_name)
+            
+            # Rename the file
+            os.rename(os.path.join(self.path, old_name), os.path.join(self.path, new_name))
+            
+            self.save_config()
+
+    def delete_page(self, name):
+        """Deletes a page from the project."""
+        if name in self.page_structure:
+            del self.page_structure[name]
+            os.remove(os.path.join(self.path, name))
+            self.save_config()

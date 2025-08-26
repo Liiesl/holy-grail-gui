@@ -1,7 +1,7 @@
 import sys
 import os
 from PySide6.QtWidgets import ( QApplication, QMainWindow, QVBoxLayout, QWidget,
-                               QFileDialog, QToolBar, QSplitter, QInputDialog )
+                               QFileDialog, QToolBar, QSplitter, QInputDialog, QMessageBox )
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtCore import Qt, QSettings
 from app.text_editor import CustomTextEditor
@@ -42,6 +42,9 @@ class MarkdownEditor(QMainWindow):
         self.editor.cursorPositionChanged.connect(self.update_format_buttons)
         self.sidebar.project_selector.currentIndexChanged.connect(self.switch_project)
         self.sidebar.page_tree.doubleClicked.connect(self.on_page_selected)
+        self.sidebar.add_page_action.triggered.connect(self.add_page)
+        self.sidebar.rename_page_action.triggered.connect(self.rename_page)
+        self.sidebar.delete_page_action.triggered.connect(self.delete_page)
 
         self.create_menu()
         self.create_toolbar()
@@ -178,6 +181,56 @@ class MarkdownEditor(QMainWindow):
             with open(self.current_file_path, "w", encoding="utf-8") as f:
                 f.write(self.editor.toPlainText())
             print(f"Saved: {self.current_file_path}")
+
+    def add_page(self):
+        if not self.current_project:
+            return
+        page_name, ok = QInputDialog.getText(self, "Add Page", "Enter new page name:")
+        if ok and page_name:
+            # Ensure the name ends with .hgmd
+            if not page_name.endswith(".hgmd"):
+                page_name += ".hgmd"
+            self.current_project.add_page(page_name)
+            self.sidebar.update_page_tree(self.current_project.page_structure)
+
+    def rename_page(self):
+        if not self.current_project:
+            return
+        
+        index = self.sidebar.page_tree.currentIndex()
+        if not index.isValid():
+            return
+            
+        item = self.sidebar.page_model.itemFromIndex(index)
+        old_name = item.data(Qt.UserRole)
+
+        new_name, ok = QInputDialog.getText(self, "Rename Page", "Enter new name:", text=old_name)
+        if ok and new_name and new_name != old_name:
+            # Ensure the name ends with .hgmd
+            if not new_name.endswith(".hgmd"):
+                new_name += ".hgmd"
+            
+            self.current_project.rename_page(old_name, new_name)
+            self.sidebar.update_page_tree(self.current_project.page_structure)
+
+    def delete_page(self):
+        if not self.current_project:
+            return
+
+        index = self.sidebar.page_tree.currentIndex()
+        if not index.isValid():
+            return
+
+        item = self.sidebar.page_model.itemFromIndex(index)
+        page_name = item.data(Qt.UserRole)
+
+        reply = QMessageBox.question(self, "Delete Page", f"Are you sure you want to delete {page_name}?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            self.current_project.delete_page(page_name)
+            self.sidebar.update_page_tree(self.current_project.page_structure)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

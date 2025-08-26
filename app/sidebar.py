@@ -1,8 +1,6 @@
-# --- START OF FILE sidebar.py ---
-
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTreeView,
-                               QGroupBox, QComboBox)
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+                               QGroupBox, QComboBox, QMenu)
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QAction
 from PySide6.QtCore import Qt
 
 class Sidebar(QWidget):
@@ -28,11 +26,29 @@ class Sidebar(QWidget):
         self.page_model = QStandardItemModel()
         self.page_tree.setModel(self.page_model)
         self.page_tree.setHeaderHidden(True)
+        self.page_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.page_tree.customContextMenuRequested.connect(self.show_context_menu)
         pages_layout.addWidget(self.page_tree)
         pages_group.setLayout(pages_layout)
 
         self.layout().addWidget(project_group)
         self.layout().addWidget(pages_group)
+        
+        # Actions
+        self.add_page_action = QAction("Add Page", self)
+        self.rename_page_action = QAction("Rename Page", self)
+        self.delete_page_action = QAction("Delete Page", self)
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        menu.addAction(self.add_page_action)
+        
+        index = self.page_tree.indexAt(position)
+        if index.isValid():
+            menu.addAction(self.rename_page_action)
+            menu.addAction(self.delete_page_action)
+        
+        menu.exec(self.page_tree.viewport().mapToGlobal(position))
 
     def _populate_tree(self, parent_item, structure):
         """Recursively populates the tree view from a dictionary."""
@@ -53,5 +69,3 @@ class Sidebar(QWidget):
     def add_project(self, name, path):
         """Adds a project to the project selector dropdown."""
         self.project_selector.addItem(name, userData=path)
-
-# --- END OF FILE sidebar.py ---
