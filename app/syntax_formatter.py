@@ -25,10 +25,12 @@ class HGMDSyntaxFormatter(QSyntaxHighlighter):
         underline_format.setFontUnderline(True)
         self.formats['underline'] = underline_format
         
-        header_format = QTextCharFormat()
-        header_format.setFontPointSize(20)
-        header_format.setFontWeight(QFont.Weight.Bold)
-        self.formats['header'] = header_format
+        # Define formats for H1 to H5
+        for i in range(1, 6):
+            header_format = QTextCharFormat()
+            header_format.setFontPointSize(24 - (2 * i)) # H1=22, H2=20, etc.
+            header_format.setFontWeight(QFont.Weight.Bold)
+            self.formats[f'header{i}'] = header_format
         
         widget_format = QTextCharFormat()
         widget_format.setBackground(QColor("#e0e0e0"))

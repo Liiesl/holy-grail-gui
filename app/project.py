@@ -16,6 +16,7 @@ class Project(QObject):
         self.name = os.path.basename(path)
         self.config_path = os.path.join(self.path, ".hgconfig", "project.json")
         self.page_structure = {}
+        self.last_opened_file = None
         self.load_config()
 
     def load_config(self):
@@ -25,8 +26,8 @@ class Project(QObject):
                 config = json.load(f)
                 self.name = config.get("name", self.name)
                 self.page_structure = config.get("pages", {})
+                self.last_opened_file = config.get("last_opened_file", None)
         else:
-            # Default structure for a new project
             self.page_structure = {"Welcome.hgmd": {}}
             self.save_config()
 
@@ -39,7 +40,8 @@ class Project(QObject):
 
         config = {
             "name": self.name,
-            "pages": self.page_structure
+            "pages": self.page_structure,
+            "last_opened_file": self.last_opened_file
         }
         with open(self.config_path, "w") as f:
             json.dump(config, f, indent=4)
@@ -57,11 +59,9 @@ class Project(QObject):
 
         os.makedirs(os.path.join(project_path, ".hgconfig", "versions"))
 
-        # Create a default page
         with open(os.path.join(project_path, "Welcome.hgmd"), "w") as f:
             f.write("# Welcome to Your New Project!\n")
 
-        # Create and return a new Project instance
         return Project(project_path)
 
     def add_page(self, name):
@@ -75,11 +75,13 @@ class Project(QObject):
     def rename_page(self, old_name, new_name):
         """Renames a page in the project."""
         if old_name in self.page_structure:
-            # Rename in page_structure
             self.page_structure[new_name] = self.page_structure.pop(old_name)
             
-            # Rename the file
             os.rename(os.path.join(self.path, old_name), os.path.join(self.path, new_name))
+            
+            # Update last_opened_file if it was the renamed file
+            if self.last_opened_file == old_name:
+                self.last_opened_file = new_name
             
             self.save_config()
 
@@ -88,4 +90,9 @@ class Project(QObject):
         if name in self.page_structure:
             del self.page_structure[name]
             os.remove(os.path.join(self.path, name))
+            
+            # Clear last_opened_file if it was the deleted file
+            if self.last_opened_file == name:
+                self.last_opened_file = None
+            
             self.save_config()

@@ -9,14 +9,14 @@ from app.sidebar import Sidebar
 from app.project import Project
 from app.version_control import VersionControl
 
-class MarkdownEditor(QMainWindow):
+class HolyGrailTextEditor(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Custom HGMD Editor")
+        self.setWindowTitle("Holy Grail Text Editor")
         self.setGeometry(100, 100, 1200, 800)
 
         # Use QSettings to store application settings
-        self.settings = QSettings("MyCompany", "MarkdownEditor")
+        self.settings = QSettings("Liiesl", "HolyGrailTextEditor")
 
         self.current_project = None
         self.current_file_path = None
@@ -149,18 +149,27 @@ class MarkdownEditor(QMainWindow):
         project_path = self.sidebar.project_selector.itemData(index)
         self.current_project = Project(project_path)
         self.version_control = VersionControl(project_path)
-        # Update sidebar using the JSON structure
+        
         self.sidebar.update_page_tree(self.current_project.page_structure)
+        self.setWindowTitle(f"Custom HGMD Editor - {self.current_project.name}")
+
+        # Automatically open the last opened file
+        if self.current_project.last_opened_file:
+            last_file_path = os.path.join(self.current_project.path, self.current_project.last_opened_file)
+            if os.path.exists(last_file_path):
+                self.open_file(last_file_path)
+                return
+
+        # Fallback if no last file or file doesn't exist
         self.editor.setPlainText("Select a page from the sidebar to begin editing.")
         self.editor.setReadOnly(True)
-        self.setWindowTitle(f"Custom HGMD Editor - {self.current_project.name}")
+
 
     def on_page_selected(self, index):
         """Handles opening a page from the tree view."""
         item = self.sidebar.page_model.itemFromIndex(index)
         file_name = item.data(Qt.UserRole)
         
-        # A simple check to only open files, not "folders"
         if file_name and file_name.endswith(".hgmd"):
             path = os.path.join(self.current_project.path, file_name)
             if os.path.isfile(path):
@@ -168,11 +177,25 @@ class MarkdownEditor(QMainWindow):
 
     def open_file(self, file_path):
         """Opens a file and loads its content into the editor."""
-        self.current_file_path = file_path
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.current_file_path = file_path
             self.editor.setPlainText(content)
             self.editor.setReadOnly(False)
+
+            # Save the opened file to the project config
+            if self.current_project:
+                relative_path = os.path.relpath(file_path, self.current_project.path)
+                self.current_project.last_opened_file = relative_path
+                self.current_project.save_config()
+
+        except Exception as e:
+            print(f"Error opening file: {e}")
+            self.editor.setPlaceholderText("Could not open the selected file.")
+            self.editor.setReadOnly(True)
+            self.current_file_path = None
+
 
     def save_file(self):
         """Saves the current file within the project."""
@@ -187,7 +210,6 @@ class MarkdownEditor(QMainWindow):
             return
         page_name, ok = QInputDialog.getText(self, "Add Page", "Enter new page name:")
         if ok and page_name:
-            # Ensure the name ends with .hgmd
             if not page_name.endswith(".hgmd"):
                 page_name += ".hgmd"
             self.current_project.add_page(page_name)
@@ -206,7 +228,6 @@ class MarkdownEditor(QMainWindow):
 
         new_name, ok = QInputDialog.getText(self, "Rename Page", "Enter new name:", text=old_name)
         if ok and new_name and new_name != old_name:
-            # Ensure the name ends with .hgmd
             if not new_name.endswith(".hgmd"):
                 new_name += ".hgmd"
             
@@ -228,12 +249,19 @@ class MarkdownEditor(QMainWindow):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
+            # Check if the file to be deleted is currently open
+            if self.current_file_path and os.path.basename(self.current_file_path) == page_name:
+                self.editor.setPlainText("")
+                self.editor.setReadOnly(True)
+                self.editor.setPlaceholderText("Select a page to edit.")
+                self.current_file_path = None
+
             self.current_project.delete_page(page_name)
             self.sidebar.update_page_tree(self.current_project.page_structure)
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    editor = MarkdownEditor()
+    editor = HolyGrailTextEditor()
     editor.show()
     sys.exit(app.exec())
