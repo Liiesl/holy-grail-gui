@@ -1,13 +1,14 @@
 import sys
 import os
 from PySide6.QtWidgets import ( QApplication, QMainWindow, QVBoxLayout, QWidget,
-                               QFileDialog, QToolBar, QSplitter, QInputDialog, QMessageBox )
+                               QFileDialog, QSplitter, QInputDialog, QMessageBox )
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtCore import Qt, QSettings
 from app.text_editor import CustomTextEditor
 from app.sidebar import Sidebar
 from app.project import Project
 from app.version_control import VersionControl
+from app.menu import create_menu # Import the new menu function
 
 class HolyGrailTextEditor(QMainWindow):
     def __init__(self):
@@ -39,63 +40,15 @@ class HolyGrailTextEditor(QMainWindow):
 
         self.central_widget.setSizes([250, 950])
 
-        self.editor.cursorPositionChanged.connect(self.update_format_buttons)
         self.sidebar.project_selector.currentIndexChanged.connect(self.switch_project)
         self.sidebar.page_tree.doubleClicked.connect(self.on_page_selected)
         self.sidebar.add_page_action.triggered.connect(self.add_page)
         self.sidebar.rename_page_action.triggered.connect(self.rename_page)
         self.sidebar.delete_page_action.triggered.connect(self.delete_page)
 
-        self.create_menu()
-        self.create_toolbar()
+        # create_menu is now called from the imported module
+        create_menu(self)
         self.load_projects()
-        
-        self.editor.setReadOnly(True)
-
-    def create_menu(self):
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu("File")
-
-        new_project_action = QAction("New Project", self)
-        new_project_action.triggered.connect(self.new_project)
-        file_menu.addAction(new_project_action)
-        
-        open_project_action = QAction("Open Project", self)
-        open_project_action.triggered.connect(self.open_project)
-        file_menu.addAction(open_project_action)
-
-        file_menu.addSeparator()
-
-        save_action = QAction("Save Page", self)
-        # Add keyboard shortcut for saving
-        save_action.setShortcut(QKeySequence.Save)
-        save_action.triggered.connect(self.save_file)
-        file_menu.addAction(save_action)
-
-    def create_toolbar(self):
-        toolbar = QToolBar("Main Toolbar")
-        self.addToolBar(toolbar)
-
-        self.bold_action = QAction(QIcon.fromTheme("format-text-bold"), "Bold", self)
-        self.bold_action.setCheckable(True)
-        self.bold_action.triggered.connect(self.editor.toggle_bold)
-        toolbar.addAction(self.bold_action)
-
-        self.italic_action = QAction(QIcon.fromTheme("format-text-italic"), "Italic", self)
-        self.italic_action.setCheckable(True)
-        self.italic_action.triggered.connect(self.editor.toggle_italic)
-        toolbar.addAction(self.italic_action)
-
-        self.underline_action = QAction(QIcon.fromTheme("format-text-underline"), "Underline", self)
-        self.underline_action.setCheckable(True)
-        self.underline_action.triggered.connect(self.editor.toggle_underline)
-        toolbar.addAction(self.underline_action)
-
-    def update_format_buttons(self):
-        formats = self.editor.get_formatting_at_cursor()
-        self.bold_action.setChecked('bold' in formats)
-        self.italic_action.setChecked('italic' in formats)
-        self.underline_action.setChecked('underline' in formats)
 
     def new_project(self):
         """Creates a new project in a user-selected directory."""

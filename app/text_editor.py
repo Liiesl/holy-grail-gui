@@ -1,26 +1,36 @@
 from PySide6.QtWidgets import QTextEdit
-from PySide6.QtGui import QTextCursor
+from PySide6.QtGui import QTextCursor, QIcon, QFont
 from PySide6.QtCore import Qt
 from app.syntax_formatter import HGMDSyntaxFormatter
 from app.slash_command_popup import SlashCommandPopup
+from app.floating_style_bar import FloatingStyleBar
 import re
 
 class CustomTextEditor(QTextEdit):
     """
-    A custom text editor that uses a syntax formatter for rendering
-    and manipulates rich text directly.
+    A custom text editor that uses a syntax formatter for rendering,
+    a slash command popup for insertions, and a floating bar for styling.
     """
     def __init__(self):
         super().__init__()
         self.formatter = HGMDSyntaxFormatter(self.document())
-        # The popup now receives a reference to the editor to query its state.
         self.slash_command_popup = SlashCommandPopup(self)
+        self.floating_style_bar = FloatingStyleBar(self)
+
         self.slash_command_popup.command_selected.connect(self.execute_slash_command)
+        self.selectionChanged.connect(self.handle_selection_change)
 
         # Attributes for managing cursor movement over syntax
         self._last_cursor_pos = 0
         self._is_programmatically_moving_cursor = False
         self.cursorPositionChanged.connect(self.handle_cursor_position_change)
+
+    def handle_selection_change(self):
+        """Shows or hides the floating style bar based on text selection."""
+        if self.textCursor().hasSelection():
+            self.floating_style_bar.show_at_cursor()
+        else:
+            self.floating_style_bar.hide()
 
     def handle_cursor_position_change(self):
         """
@@ -46,30 +56,23 @@ class CustomTextEditor(QTextEdit):
         for span_type, start, length in spans:
             if span_type == 'syntax':
                 end = start + length
-                # Check if the cursor is within the bounds of this syntax span
                 if start < pos_in_block < end:
-                    # It's inside. Move it out.
                     new_pos_in_block = end if moved_forward else start
                     
                     new_cursor = self.textCursor()
                     new_cursor.setPosition(block.position() + new_pos_in_block)
 
-                    # Use a flag to prevent infinite recursion
                     self._is_programmatically_moving_cursor = True
                     self.setTextCursor(new_cursor)
                     self._last_cursor_pos = new_cursor.position()
                     self._is_programmatically_moving_cursor = False
-                    return  # Exit after handling the jump
+                    return
 
-        # If no jump occurred, just update the last position for the next event.
         self._last_cursor_pos = current_pos
 
     def keyPressEvent(self, event):
         """
-        Override to handle slash commands.
-        FIX: All slash command logic is now delegated to the SlashCommandPopup.
-        The popup decides if and how to show itself, and whether to suppress
-        the original key press.
+        Override to handle slash commands and other interactions.
         """
         # If the popup is visible, give it priority to handle navigation keys.
         if self.slash_command_popup.isVisible():
@@ -79,41 +82,25 @@ class CustomTextEditor(QTextEdit):
 
         # On a '/' press, ask the popup to handle it.
         if event.text() == '/':
-            # The popup will return True if it showed a menu for a selection,
-            # which means we should not type the '/' character.
             should_suppress_key = self.slash_command_popup.show_contextual_menu()
             if should_suppress_key:
                 return
-            # If it returns False, it means the '/' should be typed, and the
-            # popup will appear after.
         
-        # If the popup is visible and another key is typed, hide it.
         if self.slash_command_popup.isVisible() and event.text() != "/":
             self.slash_command_popup.hide()
             
         super().keyPressEvent(event)
 
-    def execute_slash_command(self, command, trigger_mode):
+    def execute_slash_command(self, command):
         """
-        Executes the selected slash command.
-        FIX: Now receives the `trigger_mode` from the popup to determine
-        if the typed '/' needs to be removed.
+        Executes the selected slash command for insertions.
         """
         cursor = self.textCursor()
-        
-        # If the command was for insertion, a '/' was typed that now needs to be removed.
-        if trigger_mode == 'insertion':
-            cursor.deletePreviousChar()
+        cursor.deletePreviousChar() # Remove the typed '/'
 
         command_lower = command.lower()
         if command_lower.startswith("heading"):
             self.set_heading_level(int(command_lower.split()[-1]))
-        elif command_lower == "bold":
-            self.toggle_bold()
-        elif command_lower == "italic":
-            self.toggle_italic()
-        elif command_lower == "underline":
-            self.toggle_underline()
         elif command_lower == "widget":
             self.insert_widget()
 
@@ -145,15 +132,11 @@ class CustomTextEditor(QTextEdit):
 
     def toggle_format(self, syntax):
         """
-        Generic function to toggle formatting. Now works correctly with selections
-        preserved by the slash command logic.
+        Generic function to toggle formatting around a selection.
         """
         cursor = self.textCursor()
         
         if not cursor.hasSelection():
-            cursor.insertText(f"{syntax}{syntax}")
-            cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter, QTextCursor.MoveMode.MoveAnchor, len(syntax))
-            self.setTextCursor(cursor)
             return
 
         cursor.beginEditBlock()
@@ -209,14 +192,21 @@ class CustomTextEditor(QTextEdit):
         
     def get_formatting_at_cursor(self):
         """Checks the formatting at the current cursor position."""
-        cursor_pos = self.textCursor().position()
-        block_text = self.textCursor().block().text()
+        cursor = self.textCursor()
+        if not cursor.hasSelection():
+             # If no selection, check formatting at the single cursor position
+             char_format = cursor.charFormat()
+        else:
+             # For a selection, it's more reliable to check the start
+             temp_cursor = QTextCursor(cursor)
+             temp_cursor.setPosition(cursor.selectionStart())
+             char_format = temp_cursor.charFormat()
+
         formats = set()
-        spans = self.formatter.parser.get_format_spans(block_text)
-        block_start_pos = self.textCursor().block().position()
-        relative_cursor_pos = cursor_pos - block_start_pos
-        
-        for span_type, start, length in spans:
-            if start < relative_cursor_pos < start + length:
-                 formats.add(span_type)
+        if char_format.fontWeight() > QFont.Weight.Normal:
+             formats.add('bold')
+        if char_format.fontItalic():
+             formats.add('italic')
+        if char_format.fontUnderline():
+             formats.add('underline')
         return formats

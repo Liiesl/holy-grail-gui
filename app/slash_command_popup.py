@@ -1,20 +1,16 @@
-    
 from PySide6.QtWidgets import QListWidget, QListWidgetItem, QWidget, QVBoxLayout
 from PySide6.QtCore import Qt, Signal
 
 class SlashCommandPopup(QWidget):
     """
-    A popup widget that displays a list of slash commands.
-    FIX: This class now contains the primary logic for when and how to
-    display slash commands based on the editor's context.
+    A popup widget that displays a list of slash commands for inserting
+    new elements like headers or widgets.
     """
-    # The signal now also emits the "trigger mode" ('selection' or 'insertion')
-    command_selected = Signal(str, str)
+    command_selected = Signal(str)
 
     def __init__(self, editor):
         super().__init__(editor)
         self.editor = editor
-        self.trigger_mode = None # Can be 'selection' or 'insertion'
         
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setLayout(QVBoxLayout())
@@ -26,21 +22,17 @@ class SlashCommandPopup(QWidget):
 
     def show_contextual_menu(self):
         """
-        Checks the editor's context and shows the appropriate command list.
+        Checks if the cursor is in a position to insert a new element
+        and shows the command list if appropriate.
         Returns True if the initiating key press ('/') should be suppressed.
         """
         cursor = self.editor.textCursor()
-        commands = []
-
-        # Condition 1: A selection exists. Show styling commands.
+        
+        # This menu should only appear for insertion, not for styling a selection.
         if cursor.hasSelection():
-            self.trigger_mode = 'selection'
-            commands = ["Bold", "Italic", "Underline"]
-            self.display(commands, cursor)
-            # Suppress the '/' key to preserve the selection
-            return True
+            return False
 
-        # Condition 2: No selection. Check if we should show insertion commands.
+        # Condition: Show insertion commands if on a new line or surrounded by spaces.
         pos_in_block = cursor.positionInBlock()
         block_text = cursor.block().text()
         is_on_new_line = (len(block_text) == 0)
@@ -49,13 +41,10 @@ class SlashCommandPopup(QWidget):
         is_surrounded_by_space = char_before_is_space and char_after_is_space
 
         if is_on_new_line or is_surrounded_by_space:
-            self.trigger_mode = 'insertion'
             commands = [
                 "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Heading 5",
                 "Widget"
             ]
-            # We need the editor to type the '/' before we show the popup
-            # so we use the editor's current cursor for positioning.
             self.display(commands, self.editor.textCursor())
             # Do not suppress the key; let the editor type '/'
             return False
@@ -79,14 +68,14 @@ class SlashCommandPopup(QWidget):
         self.list_widget.setCurrentRow(0)
 
     def on_item_clicked(self, item):
-        self.command_selected.emit(item.text(), self.trigger_mode)
+        self.command_selected.emit(item.text())
         self.hide()
 
     def keyPressEvent(self, event):
         """Handle key presses for navigation and selection."""
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
             if self.list_widget.currentItem():
-                self.command_selected.emit(self.list_widget.currentItem().text(), self.trigger_mode)
+                self.command_selected.emit(self.list_widget.currentItem().text())
                 self.hide()
         elif event.key() == Qt.Key.Key_Escape:
             self.hide()
