@@ -1,0 +1,24 @@
+{
+  "name": "holy-grail-gui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Liiesl/holy-grail-gui.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Liiesl/holy-grail-gui/issues"
+  },
+  "homepage": "https://github.com/Liiesl/holy-grail-gui#readme",
+  "devDependencies": {
+    "electron": "^37.3.1"
+  }
+}
