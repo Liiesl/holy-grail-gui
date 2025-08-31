@@ -1,11 +1,11 @@
 // src/renderer/app.js
 
 import { Hgmd } from './hgmd.js';
-// Import both classes from project.js
 import { ProjectManager } from './project.js';
 import { Sidebar } from './sidebar.js';
 import { Editor } from './editor.js';
 import { Settings } from './settings.js';
+import { Titlebar } from './titlebar.js'; // Import the new Titlebar class
 
 class App {
   constructor() {
@@ -17,9 +17,9 @@ class App {
   }
 
   renderLayout() {
-    // The main app container is now split into two main views
-    // that we can toggle between.
+    // We add a new container for the title bar at the top level.
     document.getElementById('app').innerHTML = `
+      <div id="app-titlebar"></div> 
       <div id="app-view">
         <div id="app-sidebar" class="sidebar"></div>
         <div id="app-main" class="main-content"></div>
@@ -34,15 +34,19 @@ class App {
   }
 
   initComponents() {
+    const titlebarContainer = document.getElementById('app-titlebar');
     const sidebarContainer = document.getElementById('app-sidebar');
     const mainContainer = document.getElementById('app-main');
     const settingsContainer = document.getElementById('settings-view');
 
+    this.titlebar = new Titlebar(titlebarContainer); // Initialize the titlebar
     this.sidebar = new Sidebar(this.projectManager, sidebarContainer);
     this.editor = new Editor(this.projectManager, this.hgmd, mainContainer);
-    this.settings = new Settings(settingsContainer); // Initialize settings component
+    this.settings = new Settings(settingsContainer);
   }
 
+  // ... (rest of the file is unchanged) ...
+  
   connectComponents() {
     // --- Sidebar to Editor connections ---
 

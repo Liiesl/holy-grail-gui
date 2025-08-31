@@ -4,10 +4,11 @@
 @import url("sidebar.css");
 @import url("editor.css");
 @import url("slashCommand.css");
-@import url("settings.css"); /* Added import */
+@import url("settings.css");
+@import url("titlebar.css"); /* Added import for titlebar */
 
 :root {
-    /* Color Palette - Dark Mode */
+    /* ... (rest of :root is unchanged) ... */
     --color-primary: #0a84ff;         /* A slightly brighter blue for better contrast */
     --color-secondary: #8e8e93;       /* For secondary text and UI elements */
     --color-danger: #ff453a;          /* A brighter red for visibility */
@@ -41,11 +42,14 @@ body {
     background-color: var(--color-background);
     color: var(--color-text);
     overflow: hidden;
+    /* --- NEW: Add padding to the top of the body to make space for the fixed title bar --- */
+    padding-top: 32px;
 }
 
-.container {
+#app-view {
     display: flex;
-    height: 100vh;
+    /* Adjust height to account for the new padding on the body */
+    height: calc(100vh - 32px);
 }
 
 /* Helper to hide views */

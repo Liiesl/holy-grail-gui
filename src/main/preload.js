@@ -12,9 +12,18 @@ contextBridge.exposeInMainWorld('api', {
   saveNote: (note) => ipcRenderer.invoke('save-note', note),
   deleteNote: (projectPath, filename) => ipcRenderer.invoke('delete-note', { projectPath, filename }),
 
-  // NEW: Version History
+  // Version History
   getNoteHistory: (projectPath, filename) => ipcRenderer.invoke('get-note-history', { projectPath, filename }),
   getNoteVersionContent: (projectPath, hash) => ipcRenderer.invoke('get-note-version-content', { projectPath, hash }),
 
-  // REMOVED: The conversion functions are no longer handled by the main process.
+  // --- Window Controls ---
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  maximizeWindow: () => ipcRenderer.send('maximize-window'),
+  closeWindow: () => ipcRenderer.send('close-window'),
+  
+  // --- NEW: Listen for maximize/unmaximize events from main ---
+  onWindowMaximizedStateChanged: (callback) => ipcRenderer.on(
+    'window-maximized-state-changed', 
+    (event, isMaximized) => callback(isMaximized)
+  ),
 });

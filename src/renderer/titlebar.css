@@ -1,0 +1,57 @@
+/* src/renderer/titlebar.css */
+
+#app-titlebar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    height: 32px; /* Standard title bar height */
+    background-color: var(--color-surface-alt);
+    color: var(--color-text);
+    user-select: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+}
+
+.titlebar-drag-region {
+    flex-grow: 1;
+    height: 100%;
+    /* This is the magic property that makes the div draggable */
+    -webkit-app-region: drag;
+}
+
+.window-controls {
+    display: flex;
+    height: 100%;
+    /* This part should NOT be draggable */
+    -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 46px;
+    height: 100%;
+    border: none;
+    background-color: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+/* Set a base size for the icons inside the buttons */
+.window-control-btn i {
+    font-size: 10px;
+}
+
+.window-control-btn:hover {
+    background-color: var(--color-hover);
+}
+
+.window-control-close-btn:hover {
+    background-color: var(--color-danger);
+    color: var(--color-text-on-primary);
+}
