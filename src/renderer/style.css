@@ -1,0 +1,53 @@
+/* style.css - Dark Mode */
+
+/* Import component-specific styles */
+@import url("sidebar.css");
+@import url("editor.css");
+@import url("slashCommand.css");
+
+:root {
+    /* Color Palette - Dark Mode */
+    --color-primary: #0a84ff;         /* A slightly brighter blue for better contrast */
+    --color-secondary: #8e8e93;       /* For secondary text and UI elements */
+    --color-danger: #ff453a;          /* A brighter red for visibility */
+
+    --color-text: #f2f2f7;             /* Off-white for main text */
+    --color-text-on-primary: #ffffff;
+    --color-text-on-dark: #ffffff;
+
+    --color-background: #1c1c1e;      /* App body background - very dark grey */
+    --color-surface: #2c2c2e;         /* Main content panels, modals, menus */
+    --color-surface-alt: #161618;    /* Sidebar, readonly fields, etc. */
+    --color-dark-surface: #3a3a3c;     /* For distinct UI like a floating toolbar (now a lighter dark shade) */
+    
+    --color-border: #38383a;
+    
+    --color-hover: #3a3a3c;            /* For hovering over dark surface elements */
+    --color-active: #4a4a4c;           /* For active/selected state on dark surfaces */
+
+    /* Font */
+    --font-family-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-family-system);
+    background-color: var(--color-background);
+    color: var(--color-text);
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+/* Helper to hide views */
+.hidden {
+    display: none !important;
+}

@@ -1,3 +1,8 @@
-.venv/
-**/__pycache__/
-bruh/
+/node_modules
+/dist
+/build
+/.vscode
+/.idea
+.DS_Store
+/test*
+package-lock.json
