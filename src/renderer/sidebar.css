@@ -11,12 +11,20 @@
 .sidebar-mode-switcher {
     width: 50px;
     background-color: var(--color-background);
-    padding-top: 10px;
+    padding: 10px 0;
     display: flex;
     flex-direction: column;
+    justify-content: space-between; /* Pushes top and bottom groups apart */
     align-items: center;
     border-right: 1px solid var(--color-border);
     flex-shrink: 0;
+}
+
+.mode-group-top, .mode-group-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
 }
 
 .mode-btn {

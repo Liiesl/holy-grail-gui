@@ -4,6 +4,7 @@
 @import url("sidebar.css");
 @import url("editor.css");
 @import url("slashCommand.css");
+@import url("settings.css"); /* Added import */
 
 :root {
     /* Color Palette - Dark Mode */

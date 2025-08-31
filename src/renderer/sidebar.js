@@ -23,8 +23,13 @@ export class Sidebar {
   render() {
     this.container.innerHTML = `
       <div class="sidebar-mode-switcher">
-        <button id="mode-btn-files" class="mode-btn active" title="Explorer">&#128193;</button>
-        <button id="mode-btn-history" class="mode-btn" title="Version History" disabled>&#128337;</button>
+        <div class="mode-group-top">
+            <button id="mode-btn-files" class="mode-btn active" title="Explorer">&#128193;</button>
+            <button id="mode-btn-history" class="mode-btn" title="Version History" disabled>&#128337;</button>
+        </div>
+        <div class="mode-group-bottom">
+            <button id="mode-btn-settings" class="mode-btn" title="Settings">&#9881;</button>
+        </div>
       </div>
       <div class="sidebar-content">
         <div class="sidebar-header">
@@ -41,6 +46,7 @@ export class Sidebar {
   initElements() {
     this.modeBtnFiles = this.container.querySelector('#mode-btn-files');
     this.modeBtnHistory = this.container.querySelector('#mode-btn-history');
+    this.modeBtnSettings = this.container.querySelector('#mode-btn-settings'); // New button
     this.projectSelector = this.container.querySelector('#project-selector');
     this.projectViewContainer = this.container.querySelector('#project-view-container');
     this.historyViewContainer = this.container.querySelector('#history-view-container');
@@ -55,6 +61,7 @@ export class Sidebar {
     // Mode switching
     this.modeBtnFiles.addEventListener('click', () => this.showProjectView());
     this.modeBtnHistory.addEventListener('click', () => this.showHistoryView());
+    this.modeBtnSettings.addEventListener('click', () => this.emit('settingsClicked')); // Emit event
     
     // Project selection
     this.projectSelector.addEventListener('change', (e) => this.handleProjectSelection(e.target.value));

@@ -5,6 +5,7 @@ import { Hgmd } from './hgmd.js';
 import { ProjectManager } from './project.js';
 import { Sidebar } from './sidebar.js';
 import { Editor } from './editor.js';
+import { Settings } from './settings.js';
 
 class App {
   constructor() {
@@ -16,11 +17,14 @@ class App {
   }
 
   renderLayout() {
+    // The main app container is now split into two main views
+    // that we can toggle between.
     document.getElementById('app').innerHTML = `
-      <div class="container">
+      <div id="app-view">
         <div id="app-sidebar" class="sidebar"></div>
         <div id="app-main" class="main-content"></div>
       </div>
+      <div id="settings-view" class="hidden"></div>
     `;
   }
 
@@ -32,12 +36,16 @@ class App {
   initComponents() {
     const sidebarContainer = document.getElementById('app-sidebar');
     const mainContainer = document.getElementById('app-main');
+    const settingsContainer = document.getElementById('settings-view');
 
     this.sidebar = new Sidebar(this.projectManager, sidebarContainer);
     this.editor = new Editor(this.projectManager, this.hgmd, mainContainer);
+    this.settings = new Settings(settingsContainer); // Initialize settings component
   }
 
   connectComponents() {
+    // --- Sidebar to Editor connections ---
+
     this.sidebar.on('projectSelected', (project) => {
       const success = this.editor.showWelcomeMessage();
       if (success && project) {
@@ -109,6 +117,20 @@ class App {
         this.sidebar.showHistoryView();
       }
     });
+
+    // --- View Switching Connections ---
+    this.sidebar.on('settingsClicked', () => this.showSettingsView());
+    this.settings.on('closeSettings', () => this.showMainView());
+  }
+  
+  showMainView() {
+    document.getElementById('app-view').classList.remove('hidden');
+    document.getElementById('settings-view').classList.add('hidden');
+  }
+
+  showSettingsView() {
+    document.getElementById('app-view').classList.add('hidden');
+    document.getElementById('settings-view').classList.remove('hidden');
   }
 
   async start() {
