@@ -19,6 +19,7 @@
   "build": {
     "appId": "com.github.liiesl.hggui",
     "productName": "Holy Grail Text Editor",
+    "publish": null,
     "files": [
       "src/**/*",
       "package.json"
