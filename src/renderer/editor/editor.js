@@ -31,6 +31,7 @@ export class Editor {
   render() {
     this.container.innerHTML = `
       <div class="toolbar">
+        <button id="chat-toggle-btn" class="secondary" title="Toggle AI Chat">Chat</button>
         <!-- Static buttons remain here -->
         <button id="history-btn" class="secondary" title="View note history">History</button>
         <button id="restore-btn" class="secondary hidden" title="Restore this version">Restore</button>
@@ -54,6 +55,7 @@ export class Editor {
     this.historyBtn = this.container.querySelector('#history-btn');
     this.restoreBtn = this.container.querySelector('#restore-btn');
     this.floatingToolbar = this.container.querySelector('#floating-toolbar');
+    this.chatToggleBtn = this.container.querySelector('#chat-toggle-btn');
   }
   
   // --- Event Emitter ---
@@ -103,6 +105,7 @@ export class Editor {
     // Listeners for static buttons
     this.historyBtn.addEventListener('click', () => this.emit('historyClicked'));
     this.restoreBtn.addEventListener('click', () => this.restoreVersion());
+    this.chatToggleBtn.addEventListener('click', () => this.emit('chatToggled'));
     
     // Show/hide floating toolbar based on text selection
     document.addEventListener('selectionchange', () => this.handleSelectionChange());

@@ -5,6 +5,7 @@ export class Settings {
     this.container = container;
     this.listeners = {};
     this.render();
+    this.initElements();
     this.addEventListeners();
     this.showTab('general'); // Show the first tab by default
   }
@@ -40,8 +41,15 @@ export class Settings {
           <div class="settings-content">
             <div id="tab-general" class="tab-content">
               <h2>General Settings</h2>
-              <p>Placeholder for general application settings.</p>
-              <p>For example, auto-save options, default project, etc.</p>
+              
+              <div class="settings-form-group">
+                <label for="gemini-api-key">Gemini API Key</label>
+                <input type="password" id="gemini-api-key" placeholder="Enter your Gemini API Key">
+                <p>Your API key is stored locally and is only used to communicate with the Google Gemini API.</p>
+              </div>
+
+              <button class="settings-save-btn" id="save-settings-btn">Save Settings</button>
+              <span id="save-status" class="save-status"></span>
             </div>
             <div id="tab-appearance" class="tab-content hidden">
               <h2>Appearance</h2>
@@ -62,6 +70,13 @@ export class Settings {
     `;
   }
 
+  initElements() {
+    this.geminiApiKeyInput = this.container.querySelector('#gemini-api-key');
+    this.saveBtn = this.container.querySelector('#save-settings-btn');
+    this.saveStatusEl = this.container.querySelector('#save-status');
+  }
+
+
   addEventListeners() {
     // Handle closing the settings view
     this.container.querySelector('#settings-close-btn').addEventListener('click', () => {
@@ -73,7 +88,30 @@ export class Settings {
     this.navItems.forEach(li => {
       li.addEventListener('click', () => this.showTab(li.dataset.tab));
     });
+
+    // Handle saving settings
+    this.saveBtn.addEventListener('click', () => this.saveSettings());
   }
+  
+  async loadCurrentSettings() {
+    const settings = await window.api.getSettings();
+    this.geminiApiKeyInput.value = settings.geminiApiKey || '';
+  }
+
+  async saveSettings() {
+    this.saveBtn.disabled = true;
+    const settingsToSave = {
+      geminiApiKey: this.geminiApiKeyInput.value.trim()
+    };
+    await window.api.saveSettings(settingsToSave);
+    
+    this.saveStatusEl.textContent = 'Saved!';
+    this.saveBtn.disabled = false;
+    setTimeout(() => {
+        this.saveStatusEl.textContent = '';
+    }, 2500);
+  }
+
 
   showTab(tabId) {
     // Update active state on nav items

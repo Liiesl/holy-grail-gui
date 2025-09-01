@@ -1,5 +1,5 @@
 // src/main/index.js
-const { app, BrowserWindow, ipcMain } = require('electron'); // Add ipcMain
+const { app, BrowserWindow } = require('electron'); 
 const path = require('path');
 const { registerIpcHandlers } = require('./ipcHandlers');
 

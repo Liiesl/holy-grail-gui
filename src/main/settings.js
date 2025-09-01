@@ -10,13 +10,19 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
  * @returns {Promise<object>} - The settings object. Returns a default if not found.
  */
 async function readSettings() {
+  const defaults = {
+    projects: [],
+    geminiApiKey: ''
+  };
   try {
     await fs.access(settingsPath);
     const rawData = await fs.readFile(settingsPath);
-    return JSON.parse(rawData.toString());
+    const settings = JSON.parse(rawData.toString());
+    // Merge defaults to ensure new settings are present
+    return { ...defaults, ...settings };
   } catch (error) {
     console.error('Failed to read settings, returning default:', error.message);
-    return { projects: [] };
+    return defaults;
   }
 }
 
@@ -26,7 +32,10 @@ async function readSettings() {
  */
 async function saveSettings(settings) {
   try {
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    // Before saving, read existing settings to not overwrite unrelated ones
+    const currentSettings = await readSettings();
+    const newSettings = { ...currentSettings, ...settings };
+    await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2));
   } catch (error) {
     console.error('Failed to save settings:', error);
   }

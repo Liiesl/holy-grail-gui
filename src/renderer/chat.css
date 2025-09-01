@@ -1,0 +1,114 @@
+/* src/renderer/chat.css */
+
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-surface-alt);
+    height: 100%;
+}
+
+.chat-header {
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.chat-header h3 {
+    font-size: 1em;
+    font-weight: 600;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.message {
+    margin-bottom: 12px;
+    max-width: 85%;
+}
+
+.message p {
+    padding: 8px 12px;
+    border-radius: 12px;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.message.user {
+    margin-left: auto;
+    text-align: right;
+}
+
+.message.user p {
+    background-color: var(--color-primary);
+    color: var(--color-text-on-primary);
+    border-bottom-right-radius: 2px;
+}
+
+.message.gemini p {
+    background-color: var(--color-dark-surface);
+    border-bottom-left-radius: 2px;
+}
+
+/* NEW: Styles for loading and error messages */
+.message.loading p,
+.message.error p {
+    border-bottom-left-radius: 2px;
+}
+
+.message.loading p {
+    background-color: var(--color-dark-surface);
+    color: var(--color-secondary);
+    font-style: italic;
+}
+
+.message.error p {
+    background-color: #5c2b2e; /* Dark red background */
+    color: #ffb1b8; /* Light red text */
+}
+
+
+.chat-input-area {
+    padding: 10px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+#chat-input {
+    flex-grow: 1;
+    resize: none;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 8px;
+    font-family: inherit;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+#chat-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.3);
+}
+
+#chat-send-btn {
+    padding: 8px 15px;
+    background-color: var(--color-primary);
+    color: var(--color-text-on-primary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+#chat-send-btn:hover {
+    background-color: #0a84ffcc; /* Slightly transparent primary color */
+}

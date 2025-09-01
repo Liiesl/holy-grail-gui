@@ -6,6 +6,7 @@
 @import url("./editor/scmd/slashCommand.css");
 @import url("settings.css");
 @import url("titlebar.css"); /* Added import for titlebar */
+@import url("chat.css"); /* Added import for chat */
 
 :root {
     /* ... (rest of :root is unchanged) ... */
@@ -50,7 +51,25 @@ body {
     display: flex;
     /* Adjust height to account for the new padding on the body */
     height: calc(100vh - 32px);
+    overflow: hidden; /* Prevent scrollbars during transition */
 }
+
+/* NEW: Styles for chat panel toggle */
+#app-chat {
+    width: 0;
+    flex-shrink: 0;
+    overflow: hidden; /* Prevents content from showing during collapse */
+    visibility: hidden;
+    border-left: 1px solid transparent; /* To animate the border in */
+    transition: width 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}
+
+#app-view.chat-visible #app-chat {
+    width: 320px;
+    visibility: visible;
+    border-left-color: var(--color-border);
+}
+
 
 /* Helper to hide views */
 .hidden {
