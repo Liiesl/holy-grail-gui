@@ -1,9 +1,9 @@
 /* style.css - Dark Mode */
 
 /* Import component-specific styles */
-@import url("sidebar.css");
-@import url("editor.css");
-@import url("slashCommand.css");
+@import url("./sidebar/sidebar.css");
+@import url("./editor/editor.css");
+@import url("./editor/scmd/slashCommand.css");
 @import url("settings.css");
 @import url("titlebar.css"); /* Added import for titlebar */
 

@@ -1,9 +1,9 @@
 // src/renderer/app.js
 
-import { Hgmd } from './hgmd.js';
+import { Hgmd } from './editor/hgmd.js';
 import { ProjectManager } from './project.js';
-import { Sidebar } from './sidebar.js';
-import { Editor } from './editor.js';
+import { Sidebar } from './sidebar/sidebar.js';
+import { Editor } from './editor/editor.js';
 import { Settings } from './settings.js';
 import { Titlebar } from './titlebar.js'; // Import the new Titlebar class
 

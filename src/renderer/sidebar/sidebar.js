@@ -1,6 +1,6 @@
 // src/renderer/sidebar.js
-import { ProjectView } from './project.js';
-import { HistoryView } from './versionControl.js'; 
+import { ProjectView } from '../project.js';
+import { HistoryView } from '../versionControl.js'; 
 
 /**
  * Main controller for the entire sidebar, managing views and state.

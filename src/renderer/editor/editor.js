@@ -1,6 +1,6 @@
 // src/renderer/editor.js
 
-import { SlashCommand } from './slashCommand.js';
+import { SlashCommand } from './scmd/slashCommand.js';
 
 export class Editor {
   constructor(projectManager, hgmd, container) {
