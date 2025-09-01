@@ -9,9 +9,12 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 700,
-    // --- KEY CHANGES ---
-    frame: false, // Make the window frameless
-    // -------------------
+    titleBarStyle: 'hidden', // Hides the title bar but keeps controls
+    titleBarOverlay: {
+      color: '#2f3241', // A fallback background color (var(--color-surface-alt))
+      symbolColor: '#c2c8e2', // The color of the icons (var(--color-text))
+      height: 32 // Must match your CSS height
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -19,14 +22,6 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-
-  // --- NEW: Listen for window events and notify renderer ---
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send('window-maximized-state-changed', true);
-  });
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send('window-maximized-state-changed', false);
-  });
 }
 
 app.whenReady().then(() => {
@@ -34,24 +29,6 @@ app.whenReady().then(() => {
   registerIpcHandlers();
 
   createWindow();
-
-  // --- Window Control Handlers ---
-  ipcMain.on('minimize-window', () => {
-    mainWindow.minimize();
-  });
-
-  ipcMain.on('maximize-window', () => {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-  });
-
-  ipcMain.on('close-window', () => {
-    mainWindow.close();
-  });
-  // ------------------------------------
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

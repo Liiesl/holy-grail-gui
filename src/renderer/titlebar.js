@@ -4,56 +4,30 @@ export class Titlebar {
   constructor(container) {
     this.container = container;
     this.render();
-    
-    // Get references to the elements we need to manipulate
-    this.maximizeBtn = document.getElementById('maximize-btn');
-    this.maximizeIcon = this.maximizeBtn.querySelector('i');
-
-    this.bindEvents();
+    // You can re-add event binding here for your new menu items
+    this.bindMenuEvents(); 
   }
 
   render() {
-    // Replaced text characters with Font Awesome <i> tags
+    // Add the HTML structure for a menu
     this.container.innerHTML = `
-      <div class="titlebar-drag-region"></div>
-      <div class="window-controls">
-        <button id="minimize-btn" class="window-control-btn" title="Minimize"><i class="fa-solid fa-minus"></i></button>
-        <button id="maximize-btn" class="window-control-btn" title="Maximize"><i class="fa-regular fa-square"></i></button>
-        <button id="close-btn" class="window-control-btn window-control-close-btn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+      <div class="titlebar-menu">
+        <!-- You could add a logo here -->
+        <!-- <img src="path/to/icon.png" class="titlebar-icon" /> -->
+        <div class="titlebar-menu-item">File</div>
+        <div class="titlebar-menu-item">Edit</div>
+        <div class="titlebar-menu-item">View</div>
+        <div class="titlebar-menu-item">Help</div>
       </div>
+      <div class="titlebar-drag-region"></div>
     `;
   }
 
-  bindEvents() {
-    document.getElementById('minimize-btn').addEventListener('click', () => {
-      window.api.minimizeWindow();
+  bindMenuEvents() {
+    // Example: Add a click listener to the 'File' menu item
+    this.container.querySelector('.titlebar-menu-item').addEventListener('click', () => {
+      console.log('File menu clicked!');
+      // In a real app, you would open a custom dropdown menu here
     });
-
-    // Use the stored reference for the maximize button
-    this.maximizeBtn.addEventListener('click', () => {
-      window.api.maximizeWindow();
-    });
-
-    document.getElementById('close-btn').addEventListener('click', () => {
-      window.api.closeWindow();
-    });
-
-    // Listen for window state changes from the main process
-    window.api.onWindowMaximizedStateChanged((isMaximized) => {
-      this.updateMaximizeIcon(isMaximized);
-    });
-  }
-
-  // New method to toggle the maximize/restore icon and tooltip
-  updateMaximizeIcon(isMaximized) {
-    if (isMaximized) {
-      this.maximizeIcon.classList.remove('fa-square');
-      this.maximizeIcon.classList.add('fa-window-restore');
-      this.maximizeBtn.setAttribute('title', 'Restore Down');
-    } else {
-      this.maximizeIcon.classList.remove('fa-window-restore');
-      this.maximizeIcon.classList.add('fa-square');
-      this.maximizeBtn.setAttribute('title', 'Maximize');
-    }
   }
 }

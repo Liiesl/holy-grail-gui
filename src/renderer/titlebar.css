@@ -2,9 +2,9 @@
 
 #app-titlebar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start; /* Align items to the start */
     align-items: center;
-    height: 32px; /* Standard title bar height */
+    height: 32px; /* Must match titleBarOverlay.height in main process */
     background-color: var(--color-surface-alt);
     color: var(--color-text);
     user-select: none;
@@ -13,45 +13,35 @@
     left: 0;
     right: 0;
     z-index: 9999;
-}
-
-.titlebar-drag-region {
-    flex-grow: 1;
-    height: 100%;
-    /* This is the magic property that makes the div draggable */
+    /* The whole bar is draggable by default */
     -webkit-app-region: drag;
 }
 
-.window-controls {
+/* This is our new container for menu items */
+.titlebar-menu {
     display: flex;
-    height: 100%;
-    /* This part should NOT be draggable */
+    align-items: center;
+    padding-left: 8px;
+    /* CRITICAL: Mark the menu area as non-draggable so items can be clicked */
     -webkit-app-region: no-drag;
 }
 
-.window-control-btn {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 46px;
-    height: 100%;
-    border: none;
-    background-color: transparent;
-    color: var(--color-text);
+.titlebar-menu-item {
+    font-size: 13px;
+    padding: 8px 10px;
     cursor: pointer;
+    border-radius: 4px;
     transition: background-color 0.2s ease-in-out;
 }
 
-/* Set a base size for the icons inside the buttons */
-.window-control-btn i {
-    font-size: 10px;
-}
-
-.window-control-btn:hover {
+.titlebar-menu-item:hover {
     background-color: var(--color-hover);
 }
 
-.window-control-close-btn:hover {
-    background-color: var(--color-danger);
-    color: var(--color-text-on-primary);
+/* This fills the remaining empty space and makes ONLY it draggable */
+.titlebar-drag-region {
+    flex-grow: 1;
+    height: 100%;
+    /* This element's only purpose is to be the draggable area */
+    /* It inherits -webkit-app-region: drag from its parent #app-titlebar */
 }

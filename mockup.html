@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotionGit - Project Timeline Mockup</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* --- Basic Setup & Typography --- */
+        :root {
+            --bg-color: #f8f9fa;
+            --sidebar-bg: #ffffff;
+            --main-bg: #ffffff;
+            --border-color: #dee2e6;
+            --text-color: #212529;
+            --text-muted: #6c757d;
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --active-bg: #e9ecef;
+            --diff-add-bg: rgba(40, 167, 69, 0.15);
+            --diff-del-bg: rgba(220, 53, 69, 0.15);
+            --preview-bg: #fffbe6;
+            --preview-border: #ffe58f;
+            --main-branch-color: #dee2e6;
+            --feature-branch-color: #fd7e14; /* An orange color for the feature branch */
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Main Layout: Dynamic Sidebar + Main Area --- */
+        .app-container { display: flex; width: 100%; height: 100%; }
+        .sidebar { width: 320px; flex-shrink: 0; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .main-area { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; }
+
+        /* --- Sidebar Navigation Tabs --- */
+        .sidebar-nav { display: flex; padding: 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .sidebar-nav-item { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; color: var(--text-muted); transition: background-color 0.2s, color 0.2s; }
+        .sidebar-nav-item:hover { background-color: var(--active-bg); }
+        .sidebar-nav-item.active { background-color: var(--primary-color); color: white; }
+        
+        /* --- Sidebar Content Area --- */
+        .sidebar-content { flex-grow: 1; overflow-y: auto; }
+        #sidebar-view-history { padding: 20px; }
+        .history-view-header h3 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .history-view-header p { margin: 0; font-size: 0.9em; color: var(--text-muted); }
+
+
+        /* =============================================== */
+        /* --- *** UPDATED *** Project Timeline View Styles  --- */
+        /* =============================================== */
+
+        .project-timeline-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            background-color: var(--main-bg);
+        }
+
+        /* --- Left Side: The Graph --- */
+        .timeline-graph {
+            flex-grow: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        .timeline-graph h1 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .timeline-graph .project-subtitle {
+            font-size: 1.1em;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+        
+        .timeline-list {
+            position: relative;
+            /* Wider padding for branch lines */
+            padding-left: 80px; 
+        }
+        
+        /* The main vertical line is now drawn by SVGs per entry, so we remove the master line */
+        .timeline-list::before {
+            content: none;
+        }
+
+        .timeline-entry {
+            position: relative;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .graph-elements {
+            position: absolute;
+            /* Positioned to match the new wider padding */
+            left: -80px;
+            top: 0;
+            width: 80px;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to the commit details */
+        }
+        
+        .graph-elements svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        /* Branch Label Styling */
+        .branch-label {
+            position: absolute;
+            top: 18px;
+            left: 90px;
+            background-color: var(--branch-color, var(--text-muted));
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .timeline-entry.head-node circle {
+            stroke: var(--primary-color);
+            fill: var(--primary-color);
+        }
+        
+        .timeline-entry.selected circle {
+            stroke: var(--primary-color);
+            transform: scale(1.2);
+            transform-origin: center;
+        }
+
+        .commit-details {
+            padding: 15px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            flex-grow: 1;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .timeline-entry.selected .commit-details {
+             border-color: var(--primary-color);
+             box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+        
+        .timeline-entry:not(.selected) .commit-details:hover {
+            border-color: #adb5bd;
+        }
+        
+        .commit-details .commit-message { font-weight: 600; font-size: 1.1em; margin-bottom: 8px; }
+        .commit-details .commit-meta { font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px; }
+        .commit-details .changed-files-summary { font-size: 0.9em; color: var(--text-muted); }
+        .changed-files-summary i { margin-right: 5px; }
+
+
+        /* --- Right Side: The Inspector --- */
+        .inspector-panel {
+            width: 400px;
+            flex-shrink: 0;
+            border-left: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+        }
+        
+        .inspector-panel h2 { margin-top: 0; font-size: 1.4em; }
+        .inspector-commit-message { font-size: 1.1em; font-weight: 500; background: #e9ecef; padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+        .inspector-meta { color: var(--text-muted); margin-bottom: 30px; }
+        .inspector-meta div { margin-bottom: 5px; }
+        
+        .inspector-panel h3 { font-size: 1.1em; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+
+        .changed-files-list { list-style: none; padding: 0; margin: 0; }
+        .changed-file-item {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .changed-file-item:hover { background-color: #e9ecef; }
+        .file-info .file-path { display: block; font-weight: 500; }
+        .file-info .file-status { font-size: 0.85em; color: var(--text-muted); }
+        .file-info .file-status .added { color: #28a745; }
+        .file-info .file-status .removed { color: #dc3545; }
+        
+        .inspector-actions button {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            margin-top: 30px;
+        }
+        .inspector-actions button:hover { background-color: var(--primary-hover); }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-nav-item" title="Project Files"><i class="fas fa-folder-tree"></i></div>
+                <div class="sidebar-nav-item" title="Page History"><i class="fas fa-history"></i></div>
+                <div class="sidebar-nav-item" title="Search Project"><i class="fas fa-search"></i></div>
+                <div class="sidebar-nav-item active" title="Project History"><i class="fas fa-network-wired"></i></div>
+            </nav>
+            <div class="sidebar-content">
+                <div id="sidebar-view-history">
+                    <div class="history-view-header">
+                        <h3>Page History</h3>
+                        <p><i class="fas fa-info-circle"></i> Select a version from the timeline to inspect its file changes.</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- =============================================== -->
+        <!-- MAIN AREA: Displays the Project Timeline View   -->
+        <!-- =============================================== -->
+        <main class="main-area">
+            
+            <div class="project-timeline-container">
+
+                <!-- The Visual Graph on the Left -->
+                <div class="timeline-graph">
+                    <h1>Project Timeline</h1>
+                    <p class="project-subtitle">History for "My Sci-Fi Novel"</p>
+
+                    <div class="timeline-list">
+                        
+                        <!-- HEAD Node -->
+                        <div class="timeline-entry head-node">
+                            <div class="graph-elements">
+                                <svg><path d="M 20 25 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/><circle cx="20" cy="20" r="8" fill="#fff" stroke-width="3"/></svg>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Current Unsaved Changes (HEAD)</div>
+                                <div class="changed-files-summary"><i class="fas fa-file-alt"></i> 2 pages modified</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Merge Commit -->
+                        <div class="timeline-entry">
+                            <div class="graph-elements">
+                                <svg>
+                                    <!-- Line from parent on main -->
+                                    <path d="M 20 20 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/>
+                                    <!-- Line from feature branch merging in -->
+                                    <path d="M 50 100 v -70 C 50 25, 50 25, 20 20" stroke="var(--feature-branch-color)" stroke-width="4" fill="none"/>
+                                    <circle cx="20" cy="20" r="8" fill="#fff" stroke="var(--main-branch-color)" stroke-width="3"/>
+                                </svg>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Merge branch 'feature/alien-races'</div>
+                                <div class="commit-meta">You saved 5 hours ago</div>
+                                <div class="changed-files-summary"><i class="fas fa-code-merge"></i> Merged 1 commit</div>
+                            </div>
+                        </div>
+
+                        <!-- A commit on main that happened while the branch was active -->
+                         <div class="timeline-entry">
+                            <div class="graph-elements">
+                                <svg>
+                                    <!-- Vertical line on main -->
+                                    <path d="M 20 0 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/>
+                                    <!-- Vertical line for the parallel branch -->
+                                    <path d="M 50 0 v 100" stroke="var(--feature-branch-color)" stroke-width="4" fill="none"/>
+                                    <circle cx="20" cy="20" r="8" fill="#fff" stroke="var(--main-branch-color)" stroke-width="3"/>
+                                </svg>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Expanded on personality traits</div>
+                                <div class="commit-meta">You saved 1 day ago</div>
+                                <div class="changed-files-summary"><i class="fas fa-file-alt"></i> 1 page modified</div>
+                            </div>
+                        </div>
+                        
+                        <!-- The SELECTED commit, which is on the feature branch -->
+                        <div class="timeline-entry selected">
+                            <div class="graph-elements">
+                                <svg>
+                                    <!-- Vertical line on main passing by -->
+                                    <path d="M 20 0 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/>
+                                    <!-- Vertical line for the branch itself -->
+                                    <path d="M 50 0 v 100" stroke="var(--feature-branch-color)" stroke-width="4" fill="none"/>
+                                    <circle cx="50" cy="20" r="8" fill="#fff" stroke="var(--feature-branch-color)" stroke-width="3"/>
+                                </svg>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Added key motivations for Klorgan race</div>
+                                <div class="commit-meta">You saved 1 day ago</div>
+                                <div class="changed-files-summary"><i class="fas fa-file-alt"></i> 2 pages modified</div>
+                            </div>
+                        </div>
+
+                        <!-- The commit where the branch was created -->
+                         <div class="timeline-entry">
+                            <div class="graph-elements">
+                                <svg>
+                                    <!-- Line coming from parent -->
+                                    <path d="M 20 20 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/>
+                                    <!-- Line going up on main -->
+                                    <path d="M 20 0 v 20" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/>
+                                    <!-- Branch out curve -->
+                                    <path d="M 20 20 C 20 30, 20 30, 50 35" stroke="var(--feature-branch-color)" stroke-width="4" fill="none"/>
+                                    <circle cx="20" cy="20" r="8" fill="#fff" stroke="var(--main-branch-color)" stroke-width="3"/>
+                                </svg>
+                                <!-- Branch Label -->
+                                <div class="branch-label" style="--branch-color: var(--feature-branch-color)">feature/alien-races</div>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Corrected name of starship</div>
+                                <div class="commit-meta">You saved yesterday</div>
+                                <div class="changed-files-summary"><i class="fas fa-file-alt"></i> 1 page modified</div>
+                            </div>
+                        </div>
+                        
+                        <!-- The first commit -->
+                        <div class="timeline-entry">
+                            <div class="graph-elements">
+                                <svg><path d="M 20 0 v 100" stroke="var(--main-branch-color)" stroke-width="4" fill="none"/><circle cx="20" cy="20" r="8" fill="#fff" stroke="var(--main-branch-color)" stroke-width="3"/></svg>
+                            </div>
+                            <div class="commit-details">
+                                <div class="commit-message">Initial draft of character bio</div>
+                                <div class="commit-meta">You saved 3 days ago</div>
+                                <div class="changed-files-summary"><i class="fas fa-plus-square"></i> 1 page created</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- The Inspector Panel on the Right -->
+                <aside class="inspector-panel">
+                    <h2>Version Details</h2>
+                    
+                    <div class="inspector-commit-message">
+                        "Added key motivations for Klorgan race"
+                    </div>
+                    
+                    <div class="inspector-meta">
+                        <div><i class="fas fa-user"></i> <strong>Author:</strong> You</div>
+                        <div><i class="fas fa-calendar-alt"></i> <strong>Date:</strong> 1 day ago</div>
+                        <div><i class="fas fa-hashtag"></i> <strong>ID:</strong> a3f4c109</div>
+                    </div>
+
+                    <h3>Changes in this Version (2)</h3>
+                    <ul class="changed-files-list">
+                        <li class="changed-file-item" title="Click to view changes for this file">
+                            <div class="file-info">
+                                <span class="file-path"><i class="fas fa-file-alt"></i> Lore/Alien Races.md</span>
+                                <span class="file-status">Modified: <span class="added">+12 words</span></span>
+                            </div>
+                            <i class="fas fa-chevron-right"></i>
+                        </li>
+                        <li class="changed-file-item" title="Click to view changes for this file">
+                            <div class="file-info">
+                                <span class="file-path"><i class="fas fa-file-alt"></i> Characters/Klorgan Leader.md</span>
+                                <span class="file-status">Modified: <span class="added">+28 words</span>, <span class="removed">-5 words</span></span>
+                            </div>
+                            <i class="fas fa-chevron-right"></i>
+                        </li>
+                    </ul>
+
+                    <div class="inspector-actions">
+                        <button><i class="fas fa-undo"></i> Restore Project to this Version</button>
+                    </div>
+
+                </aside>
+
+            </div>
+
+        </main>
+    </div>
+
+</body>
+</html>
