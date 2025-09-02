@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   getNoteContent: (projectPath, filename) => ipcRenderer.invoke('get-note-content', { projectPath, filename }),
   saveNote: (note) => ipcRenderer.invoke('save-note', note),
   deleteNote: (projectPath, filename) => ipcRenderer.invoke('delete-note', { projectPath, filename }),
+  createNote: (payload) => ipcRenderer.invoke('create-note', payload), // Pass the whole payload object
+  renameNote: (projectPath, id, newName) => ipcRenderer.invoke('rename-note', { projectPath, id, newName }),
 
   // Version History
   getNoteHistory: (projectPath, filename) => ipcRenderer.invoke('get-note-history', { projectPath, filename }),

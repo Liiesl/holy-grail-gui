@@ -112,17 +112,19 @@ async function addProject(event) {
 
 async function getNotes(projectPath) {
     if (!(await isPathInProjects(projectPath))) return [];
-    await ensureHgGuiInitialized(projectPath); // ROBUSTNESS: Ensure structure exists before reading.
+    await ensureHgGuiInitialized(projectPath);
 
-    const files = await fs.readdir(projectPath);
-    const mdFiles = files.filter(file => file.endsWith('.md'));
+    const physicalFiles = await fs.readdir(projectPath);
+    const hgmdFiles = physicalFiles.filter(file => file.endsWith('.hgmd'));
 
     const pagesConfig = await readPagesConfig(projectPath);
     let configNeedsUpdate = false;
 
-    for (const filename of mdFiles) {
+    // Reconcile: If a physical file exists but isn't in config, add it.
+    for (const filename of hgmdFiles) {
         if (!pagesConfig[filename]) {
             pagesConfig[filename] = {
+                name: filename.replace('.hgmd', ''), // Use filename as default name
                 parentId: null,
                 icon: '📄',
                 currentHash: null,
@@ -131,16 +133,25 @@ async function getNotes(projectPath) {
             configNeedsUpdate = true;
         }
     }
+    // Reconcile: If a config entry has no physical file, mark it as deleted.
+    for (const filename in pagesConfig) {
+        if (!hgmdFiles.includes(filename) && pagesConfig[filename].status === 'active') {
+            pagesConfig[filename].status = 'deleted';
+            configNeedsUpdate = true;
+        }
+    }
 
     if (configNeedsUpdate) {
         await savePagesConfig(projectPath, pagesConfig);
     }
 
+    // Generate the note structure for the UI based on pages.json
     const notes = Object.entries(pagesConfig)
         .filter(([, data]) => data.status === 'active')
-        .map(([filename, data]) => ({
-            name: filename,
-            path: path.join(projectPath, filename),
+        .map(([id, data]) => ({
+            id: id, // The filename is the ID
+            name: data.name,
+            path: path.join(projectPath, id), // Full path using ID
             parentId: data.parentId,
             icon: data.icon,
         }));
@@ -155,6 +166,7 @@ async function getNoteContent({ projectPath, filename }) {
 }
 
 async function saveNote({ projectPath, filename, content }) {
+    // filename is now the unique ID, e.g., 'abc123xyz.hgmd'
     const filePath = path.join(projectPath, filename);
     if (!(await isPathInProjects(filePath))) throw new Error("Access denied.");
     
@@ -189,20 +201,76 @@ async function saveNote({ projectPath, filename, content }) {
             await fs.writeFile(logPath, JSON.stringify(logData, null, 2));
         }
 
+        // Update pages.json with the current hash
         const pagesConfig = await readPagesConfig(projectPath);
-        if (!pagesConfig[filename]) {
-            pagesConfig[filename] = { parentId: null, icon: '📄', status: 'active' };
+        if (pagesConfig[filename]) { // Should always be true for an existing note
+            pagesConfig[filename].currentHash = hash;
+            await savePagesConfig(projectPath, pagesConfig);
         }
-        pagesConfig[filename].currentHash = hash;
-        pagesConfig[filename].status = 'active';
-        await savePagesConfig(projectPath, pagesConfig);
 
     } catch (error) {
         console.error(`Failed to version note ${filename}:`, error);
     }
     
-    return { success: true, path: filePath };
+    return { success: true, path: filePath, filename: filename };
 }
+
+async function createNote({ projectPath, name, parentId = null }) { // Accept parentId from payload
+    if (!(await isPathInProjects(projectPath))) throw new Error("Access denied.");
+    await ensureHgGuiInitialized(projectPath);
+    
+    const pagesConfig = await readPagesConfig(projectPath);
+
+    // Check for unique name
+    const nameExists = Object.values(pagesConfig).some(p => p.status === 'active' && p.name === name);
+    if (nameExists) {
+        return { success: false, error: 'A page with this name already exists.' };
+    }
+
+    // Generate unique ID for the filename
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).substring(2)}.hgmd`;
+    const filePath = path.join(projectPath, id);
+
+    // Create empty file
+    await fs.writeFile(filePath, '');
+
+    // Add to config, now including the parentId
+    pagesConfig[id] = {
+        name: name,
+        parentId: parentId, // Use the passed parentId
+        icon: '📄',
+        currentHash: null,
+        status: 'active'
+    };
+    await savePagesConfig(projectPath, pagesConfig);
+
+    return { success: true, note: { id: id, name: name } };
+}
+
+async function renameNote({ projectPath, id, newName }) {
+    if (!(await isPathInProjects(projectPath))) throw new Error("Access denied.");
+    
+    const pagesConfig = await readPagesConfig(projectPath);
+
+    if (!pagesConfig[id]) {
+        return { success: false, error: 'Page not found.' };
+    }
+
+    // Check for unique name (excluding the current page itself)
+    const nameExists = Object.entries(pagesConfig).some(([key, page]) => {
+        return key !== id && page.status === 'active' && page.name === newName;
+    });
+    if (nameExists) {
+        return { success: false, error: 'A page with this name already exists.' };
+    }
+
+    // Update name
+    pagesConfig[id].name = newName;
+    await savePagesConfig(projectPath, pagesConfig);
+
+    return { success: true };
+}
+
 
 async function deleteNote({ projectPath, filename }) {
     try {
@@ -210,8 +278,10 @@ async function deleteNote({ projectPath, filename }) {
         if (!(await isPathInProjects(filePath))) throw new Error("Access denied.");
         await ensureHgGuiInitialized(projectPath); // ROBUSTNESS: Ensure config file exists before write.
         
+        // Physically remove the file
         await fs.unlink(filePath);
         
+        // Update the status in pages.json to 'deleted'
         const pagesConfig = await readPagesConfig(projectPath);
         if (pagesConfig[filename]) {
             pagesConfig[filename].status = 'deleted';
@@ -222,6 +292,12 @@ async function deleteNote({ projectPath, filename }) {
     } catch (error) {
         // Handle case where file doesn't exist to be unlinked
         if (error.code === 'ENOENT') {
+            // Even if the file is gone, ensure its status is 'deleted' in the config
+            const pagesConfig = await readPagesConfig(projectPath);
+            if (pagesConfig[filename] && pagesConfig[filename].status !== 'deleted') {
+                pagesConfig[filename].status = 'deleted';
+                await savePagesConfig(projectPath, pagesConfig);
+            }
             return { success: true, message: 'File already deleted.' };
         }
         console.error("Failed to delete note:", error);
@@ -303,6 +379,8 @@ module.exports = {
   getNotes,
   getNoteContent,
   saveNote,
+  createNote,
+  renameNote,
   deleteNote,
   getNoteHistory,
   getNoteVersionContent,

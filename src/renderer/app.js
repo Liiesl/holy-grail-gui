@@ -103,7 +103,7 @@ class App {
     this.sidebar.on('projectSelected', (project) => {
       const success = this.editor.showWelcomeMessage();
       if (success && project) {
-        this.editor.editorEl.innerHTML = 'Select a note or create a new one.';
+        this.editor.editorEl.innerHTML = 'Select a page or create a new one.';
       } else if (!success) {
         // User cancelled, revert dropdown. This is hard, so we'll just leave it for now.
       }
@@ -131,13 +131,59 @@ class App {
     });
 
     this.sidebar.on('newNoteClicked', (project) => {
+      // This is now just a signal to get the editor ready for a new note.
+      // The ProjectView is already showing an input field.
       const success = this.editor.clearAndFocus();
       if (success) {
         this.editor.setCurrentFile(project, null);
         this.sidebar.setCurrentFile(project, null);
       }
     });
+    this.sidebar.on('createNote', async ({ project, name, parentId }) => { // Destructure parentId
+      const result = await this.projectManager.createNote(project.path, name, parentId); // Pass it along
+      if (result.success) {
+        await this.sidebar.refreshFileTree();
+        // Automatically select and load the newly created note
+        const newNoteId = result.note.id;
+        const loadSuccess = await this.editor.loadNoteContent(project.path, newNoteId);
+        if (loadSuccess) {
+            this.editor.setCurrentFile(project, newNoteId);
+            this.sidebar.setCurrentFile(project, newNoteId);
+        }
+      } else {
+        alert(`Error creating page: ${result.error || 'Unknown error'}`);
+      }
+    });
+
+    this.sidebar.on('renameNote', async ({ project, id, newName }) => {
+        const result = await this.projectManager.renameNote(project.path, id, newName);
+        if (result.success) {
+            await this.sidebar.refreshFileTree();
+        } else {
+            alert(`Error renaming page: ${result.error || 'Unknown error'}`);
+            await this.sidebar.refreshFileTree(); // Refresh to revert UI change on failure
+        }
+    });
     
+    this.sidebar.on('deleteNoteRequested', async ({ project, file, name }) => {
+        const confirmed = confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`);
+        if (confirmed) {
+            const result = await this.projectManager.deleteNote(project.path, file); // 'file' is the ID
+            if (result.success) {
+                // If the deleted note was the one currently open, clear the editor.
+                if (this.editor.currentFile === file && this.editor.currentProject.path === project.path) {
+                    this.editor.showWelcomeMessage();
+                    this.editor.setCurrentFile(project, null);
+                    this.sidebar.setCurrentFile(project, null);
+                }
+                // Refresh the file list to remove the deleted note.
+                this.sidebar.refreshFileTree();
+            } else {
+                alert(`Error deleting note: ${result.error || 'Unknown error'}`);
+            }
+        }
+    });
+
     this.sidebar.on('backToNotes', async () => {
         // This event is fired when switching from history back to files view.
         if (this.editor.isReadOnly) {
@@ -160,6 +206,7 @@ class App {
 
     this.editor.on('noteSaved', ({ isNew, isRestore }) => {
       if (isNew || isRestore) {
+        // saveNote doesn't create new notes anymore, but this might be useful for other flows.
         this.sidebar.refreshFileTree();
       }
       // After save, update sidebar's file state

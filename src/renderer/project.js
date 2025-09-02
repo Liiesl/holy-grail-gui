@@ -37,7 +37,15 @@ export class ProjectManager {
     return window.api.deleteNote(projectPath, filename);
   }
   
-  // NEW: Version History Methods
+  async createNote(projectPath, name, parentId) { // Add parentId parameter
+    return window.api.createNote({ projectPath, name, parentId }); // Pass as an object
+  }
+
+  async renameNote(projectPath, id, newName) {
+    return window.api.renameNote(projectPath, id, newName);
+  }
+
+  // Version History Methods
   async getNoteHistory(projectPath, filename) {
     return window.api.getNoteHistory(projectPath, filename);
   }

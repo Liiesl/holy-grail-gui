@@ -52,6 +52,9 @@ export class Sidebar {
         this.emit('fileSelected', data)
     });
     this.projectView.on('newNoteClicked', (data) => this.emit('newNoteClicked', data));
+    this.projectView.on('deleteNoteRequested', (data) => this.emit('deleteNoteRequested', data));
+    this.projectView.on('createNote', (data) => this.emit('createNote', data));
+    this.projectView.on('renameNote', (data) => this.emit('renameNote', data));
     this.historyView.on('versionSelected', (data) => this.emit('versionSelected', data));
   }
   

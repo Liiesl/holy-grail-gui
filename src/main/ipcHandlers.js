@@ -33,6 +33,14 @@ function registerIpcHandlers() {
     return projectManager.deleteNote(payload);
   });
 
+  ipcMain.handle('create-note', (event, payload) => {
+    return projectManager.createNote(payload);
+  });
+
+  ipcMain.handle('rename-note', (event, payload) => {
+    return projectManager.renameNote(payload);
+  });
+
   // --- Version History Handlers ---
   ipcMain.handle('get-note-history', (event, payload) => {
     return projectManager.getNoteHistory(payload);
