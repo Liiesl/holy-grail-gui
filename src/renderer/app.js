@@ -53,6 +53,7 @@ class App {
     // --- Titlebar to App connections ---
     this.titlebar.container.addEventListener('sidebarToggle', () => {
       document.getElementById('app-view').classList.toggle('sidebar-collapsed');
+      this.updateSession();
     });
 
     this.titlebar.container.addEventListener('modeChange', (e) => {
@@ -96,6 +97,7 @@ class App {
     // --- Editor to App connection ---
     this.editor.on('chatToggled', () => {
       document.getElementById('app-view').classList.toggle('chat-visible');
+      this.updateSession();
     });
 
     // --- Sidebar to App/Other Components connections ---
@@ -114,6 +116,7 @@ class App {
       if (success) {
         this.editor.setCurrentFile(project, file);
         this.sidebar.setCurrentFile(project, file);
+        this.updateSession();
       } else {
         // If user cancelled, revert the selection in the sidebar
         this.sidebar.setCurrentFile(project, this.editor.currentFile);
@@ -137,6 +140,7 @@ class App {
       if (success) {
         this.editor.setCurrentFile(project, null);
         this.sidebar.setCurrentFile(project, null);
+        this.updateSession();
       }
     });
     this.sidebar.on('createNote', async ({ project, name, parentId }) => { // Destructure parentId
@@ -175,6 +179,7 @@ class App {
                     this.editor.showWelcomeMessage();
                     this.editor.setCurrentFile(project, null);
                     this.sidebar.setCurrentFile(project, null);
+                    this.updateSession();
                 }
                 // Refresh the file list to remove the deleted note.
                 this.sidebar.refreshFileTree();
@@ -248,6 +253,7 @@ class App {
         this.sidebar.displayProject(project);
         this.titlebar.setCurrentProjectName(project.name);
         this.titlebar.updateProjectList(this.sidebar.projects, project.path);
+        this.updateSession(); // Update session on project change
       }
     }
   }
@@ -274,6 +280,51 @@ class App {
     }
   }
 
+  // NEW: Sends current renderer state to the main process
+  updateSession() {
+    const sessionData = {
+        lastProjectPath: this.sidebar.currentProject?.path || null,
+        lastOpenFileId: this.editor.currentFile || null,
+        sidebarCollapsed: document.getElementById('app-view').classList.contains('sidebar-collapsed'),
+        chatVisible: document.getElementById('app-view').classList.contains('chat-visible'),
+    };
+    window.api.updateSessionData(sessionData);
+  }
+
+  // NEW: Restores the application state based on saved session data
+  async restoreSession(session) {
+    // Restore UI toggles
+    if (session.sidebarCollapsed) {
+      document.getElementById('app-view').classList.add('sidebar-collapsed');
+    }
+    if (session.chatVisible) {
+      document.getElementById('app-view').classList.add('chat-visible');
+    }
+
+    // Restore last open project
+    if (session.lastProjectPath) {
+      // Check if project still exists
+      const projectExists = this.sidebar.projects.some(p => p.path === session.lastProjectPath);
+      if (projectExists) {
+        // This internally calls displayProject, which loads the file tree
+        await this.handleProjectSelection(session.lastProjectPath);
+
+        // Restore last open file
+        if (session.lastOpenFileId) {
+            const project = this.sidebar.currentProject;
+            const fileId = session.lastOpenFileId;
+            
+            // Try to load the file. If it was deleted, this will fail gracefully.
+            const success = await this.editor.loadNoteContent(project.path, fileId);
+            if (success) {
+                this.editor.setCurrentFile(project, fileId);
+                this.sidebar.setCurrentFile(project, fileId);
+                // No need to call updateSession here as it's part of the startup flow
+            }
+        }
+      }
+    }
+  }
 
   showMainView() {
     document.getElementById('app-view').classList.remove('hidden');
@@ -289,11 +340,19 @@ class App {
   async start() {
     const appContainer = document.getElementById('app');
     const loader = document.getElementById('loader');
+
+    // Load session data first
+    const settings = await window.api.getSettings();
+    const session = settings.session;
     
     await this.sidebar.loadProjects();
-    // NEW: Initialize titlebar with project list
     this.titlebar.updateProjectList(this.sidebar.projects, null);
-    
+
+    // If a session exists, restore the application state
+    if (session) {
+      await this.restoreSession(session);
+    }
+
     loader.classList.add('hidden');
     appContainer.classList.remove('hidden');
   }

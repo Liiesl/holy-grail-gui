@@ -6,8 +6,9 @@ const { generateChatResponse } = require('./gemini'); // Import Gemini function
 
 /**
  * Registers all IPC handlers for the application.
+ * @param {object} sessionRef - A reference object to store session data.
  */
-function registerIpcHandlers() {
+function registerIpcHandlers(sessionRef) {
   // --- Project & Note Handlers ---
   ipcMain.handle('get-projects', () => {
     return projectManager.getProjects();
@@ -78,6 +79,11 @@ function registerIpcHandlers() {
     } catch (error) {
       return { success: false, error: error.message };
     }
+  });
+
+  // --- NEW: Session Handler ---
+  ipcMain.on('update-session-data', (event, data) => {
+    sessionRef.current = data;
   });
 }
 

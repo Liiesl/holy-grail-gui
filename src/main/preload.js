@@ -33,10 +33,13 @@ contextBridge.exposeInMainWorld('api', {
     (event, isMaximized) => callback(isMaximized)
   ),
 
-  // --- NEW: Settings ---
+  // --- NEW: Session Handler ---
+  updateSessionData: (data) => ipcRenderer.send('update-session-data', data),
+
+  // --- Settings ---
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   
-  // --- NEW: Gemini Chat ---
+  // --- Gemini Chat ---
   chatWithGemini: (prompt) => ipcRenderer.invoke('chat-with-gemini', prompt),
 });

@@ -3,18 +3,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <!-- 
-      REMOVED: <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
-      
-      ADDED: A much stricter and more secure Content Security Policy.
-      - default-src 'self': By default, only allow loading resources from the app itself.
-      - script-src 'self': Only allow scripts from the app's own files. No inline or eval scripts.
-      - style-src 'self' 'unsafe-inline': Allow stylesheets from app files AND inline styles. 
-        (This is often a necessary compromise for UI libraries or dynamic styling).
-      - object-src 'none': Disallow plugins like Flash.
-    -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none';">
-    
     <title>Markdown WYSIWYG Notes</title>
     <link rel="stylesheet" href="../../external/FontAwesome/css/all.min.css">
     <link rel="stylesheet" href="style.css">
