@@ -41,8 +41,12 @@ export class Editor {
 
       <!-- New floating toolbar, initially hidden -->
       <div id="floating-toolbar" class="hidden">
-          <button data-command="bold"><b>B</b></button>
-          <button data-command="italic"><i>I</i></button>
+        <button data-command="bold" title="Bold"><b>B</b></button>
+        <button data-command="italic" title="Italic"><i>I</i></button>
+        <button data-command="underline" title="Underline"><u>U</u></button>
+        <button data-command="strikeThrough" title="Strikethrough"><s>S</s></button>
+        <button data-command="code" title="Code">&lt;/&gt;</button>
+        <button data-command="highlight" title="Highlight" style="background-color: #fef07a;">H</button>
       </div>
     `;
   }
@@ -236,8 +240,12 @@ export class Editor {
         switch (command) {
             case 'bold':
             case 'italic':
+            case 'underline':
+            case 'strikeThrough':
                 isActive = document.queryCommandState(command);
                 break;
+            // State detection for custom formats like `code` and `highlight` is more complex
+            // and not included in this simple state updater.
         }
         button.classList.toggle('active', isActive);
     });
@@ -405,8 +413,38 @@ export class Editor {
 
   applyFormat(command) {
     if (this.editorEl.contentEditable === 'false') return;
-    const formatMap = { h1: 'formatBlock', h2: 'formatBlock', ul: 'insertUnorderedList' };
-    document.execCommand(formatMap[command] || command, false, formatMap[command] ? command : null);
+
+    // Handle custom formats not natively supported by execCommand names
+    if (command === 'code' || command === 'highlight') {
+        const selection = window.getSelection().toString();
+        if (selection) {
+            const tag = command === 'code' ? 'code' : 'mark';
+            // Use insertHTML for simple tag wrapping. Note: This doesn't toggle the format off.
+            document.execCommand('insertHTML', false, `<${tag}>${selection}</${tag}>`);
+        }
+    } else {
+        // Handle standard execCommand formats
+        const blockFormats = ['h1', 'h2', 'h3', 'p', 'blockquote', 'pre'];
+        const listCommands = {
+            ul: 'insertUnorderedList',
+            ol: 'insertOrderedList'
+        };
+        const simpleCommands = {
+            hr: 'insertHorizontalRule'
+        };
+
+        if (blockFormats.includes(command)) {
+            document.execCommand('formatBlock', false, command);
+        } else if (listCommands[command]) {
+            document.execCommand(listCommands[command], false, null);
+        } else if (simpleCommands[command]) {
+            document.execCommand(simpleCommands[command], false, null);
+        } else {
+             // Fallback for simple commands like bold, italic, etc.
+             document.execCommand(command, false, null);
+        }
+    }
+
     this.editorEl.focus();
     this.handleInput();
     // After applying a format, immediately update the toolbar state

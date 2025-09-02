@@ -12,7 +12,12 @@ export class SlashCommand {
     this.commands = [
       { name: 'Heading 1', command: 'h1', description: 'Large heading', action: (editor) => editor.applyFormat('h1') },
       { name: 'Heading 2', command: 'h2', description: 'Medium heading', action: (editor) => editor.applyFormat('h2') },
-      { name: 'Bulleted List', command: 'ul', description: 'Create a simple list', action: (editor) => editor.applyFormat('ul') },
+      { name: 'Heading 3', command: 'h3', description: 'Small heading', action: (editor) => editor.applyFormat('h3') },
+      { name: 'Bulleted List', command: 'ul', description: 'Create a simple bulleted list', action: (editor) => editor.applyFormat('ul') },
+      { name: 'Numbered List', command: 'ol', description: 'Create an ordered list', action: (editor) => editor.applyFormat('ol') },
+      { name: 'Quote', command: 'blockquote', description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
+      { name: 'Code Block', command: 'pre', description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
+      { name: 'Divider', command: 'hr', description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },
       { name: 'Seek', command: 'seek', description: 'Find and link to another note', disabled: true },
       { name: 'Open in left pane', command: 'open-left', description: 'Open a note side-by-side', disabled: true },
       { name: 'Emoji', command: 'emoji', description: 'Insert an emoji', disabled: true },
@@ -189,7 +194,7 @@ export class SlashCommand {
     // 3. For block-formatting commands, we explicitly select the target block's content.
     // This gives `document.execCommand` a clear instruction on what to format,
     // which is crucial for empty lines where it might otherwise affect an adjacent block.
-    const blockFormattingCommands = ['h1', 'h2', 'ul'];
+    const blockFormattingCommands = ['h1', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'pre'];
     if (targetBlock && blockFormattingCommands.includes(command.command)) {
       const selection = window.getSelection();
       const newRange = document.createRange();
