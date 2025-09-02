@@ -286,32 +286,9 @@ export class Editor {
     this.emit('dirtyStateChanged', { isDirty: false });
   }
   
-  // Helper to render markdown to the editor and normalize structure
+  // REFACTORED: Helper to render markdown to the editor using the engine
   renderHtml(markdown) {
-    const rawHtml = this.hgmd.toHtml(markdown);
-    const tempContainer = document.createElement('div');
-    tempContainer.innerHTML = rawHtml;
-    const finalNodes = [];
-    let currentParagraph = document.createElement('p');
-    const BLOCK_TAGS = ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DIV', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'PRE', 'HR', 'TABLE'];
-    const isBlockElement = (node) => node.nodeType === 1 && BLOCK_TAGS.includes(node.tagName);
-    tempContainer.childNodes.forEach(node => {
-      if (isBlockElement(node)) {
-        if (currentParagraph.childNodes.length > 0) finalNodes.push(currentParagraph);
-        finalNodes.push(node.cloneNode(true));
-        currentParagraph = document.createElement('p');
-      } else if (node.nodeType === 1 && node.tagName === 'BR') {
-        finalNodes.push(currentParagraph);
-        currentParagraph = document.createElement('p');
-      } else {
-        currentParagraph.appendChild(node.cloneNode(true));
-      }
-    });
-    if (currentParagraph.childNodes.length > 0 || finalNodes.length === 0) {
-      finalNodes.push(currentParagraph);
-    }
-    this.editorEl.innerHTML = '';
-    finalNodes.forEach(node => this.editorEl.appendChild(node));
+    this.editorEl.innerHTML = this.hgmd.toHtml(markdown);
   }
 
   clearAndFocus() {

@@ -26,12 +26,13 @@ export class HGMDEngine {
   }
 
   /**
-   * Converts a Markdown string to an HTML string.
+   * Converts a Markdown string to an HTML string, ensuring the output is
+   * a clean series of block-level elements suitable for a contenteditable editor.
    * @param {string} markdown - The Markdown content.
    * @returns {string} - The resulting HTML.
    */
   markdownToHtml(markdown) {
-    if (markdown === null || markdown === undefined) return '';
+    if (markdown === null || markdown === undefined) return '<p><br></p>';
 
     const lines = markdown.split('\n');
     let html = '';
@@ -58,20 +59,41 @@ export class HGMDEngine {
         }
       }
 
-      if (!lineMatched) {
-        if (lines[i].trim() === '') {
-          // An empty line in Markdown should become a visible empty line in the editor.
-          html += '<p><br></p>';
-        } else {
-          // If no block rule matched, treat it as a paragraph.
-          const content = this._processInlineMd(lines[i]);
-          html += `<p>${content}</p>`;
-        }
+      if (lineMatched) {
+        continue;
+      }
+      
+      // If we are here, the line is not a recognized block element.
+      // It's either an empty line or part of a paragraph.
+      if (lines[i].trim() === '') {
+        // An empty line in Markdown should become a visible empty line in the editor.
+        html += '<p><br></p>';
         i++;
+        continue;
+      }
+
+      // It's a paragraph. Collect all consecutive non-block, non-empty lines.
+      const paragraphLines = [];
+      while (i < lines.length && lines[i].trim() !== '') {
+        const isBlock = this.blockRules.some(rule => lines[i].match(rule.mdRegex));
+        if (isBlock) {
+          break; // This line starts a new block, so the paragraph ends here.
+        }
+        paragraphLines.push(lines[i]);
+        i++;
+      }
+      
+      if (paragraphLines.length > 0) {
+        // According to Markdown specs, soft line breaks are treated as spaces.
+        const paragraphContent = paragraphLines.join(' ');
+        const processedContent = this._processInlineMd(paragraphContent);
+        html += `<p>${processedContent}</p>`;
       }
     }
 
-    return html;
+    // Ensure we always return something the editor can handle.
+    // This handles the case of a markdown input that's just whitespace.
+    return html.trim() === '' ? '<p><br></p>' : html;
   }
 
   /**
