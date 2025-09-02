@@ -70,6 +70,29 @@ class App {
         this.handleProjectSelection(e.detail.path);
     });
     
+    // Listen for project actions from the titlebar menus
+    this.titlebar.container.addEventListener('projectAction', async (e) => {
+        const { action, path } = e.detail;
+
+        if (action === 'add_new_project') {
+            const projectsBefore = this.sidebar.projects.length;
+            const updatedProjects = await this.projectManager.addProject();
+            // If a project was actually added, refresh the list
+            if (updatedProjects && updatedProjects.length > projectsBefore) {
+                await this.refreshProjects();
+            }
+        } else if (action === 'untrack_project') {
+            await this.projectManager.untrackProject(path);
+            await this.refreshProjects();
+        } else if (action === 'delete_project') {
+            const result = await this.projectManager.deleteProject(path);
+            if (result.success) {
+                await this.refreshProjects();
+            }
+        }
+    });
+
+
     // --- Editor to App connection ---
     this.editor.on('chatToggled', () => {
       document.getElementById('app-view').classList.toggle('chat-visible');
@@ -168,16 +191,6 @@ class App {
 
   // NEW: Centralized project selection logic
   async handleProjectSelection(projectPath) {
-    if (projectPath === 'add_new_project') {
-        const added = await this.projectManager.addProject();
-        if (added) {
-            // Reload projects and update titlebar
-            await this.sidebar.loadProjects();
-            this.titlebar.updateProjectList(this.sidebar.projects, this.sidebar.currentProject?.path);
-        }
-        return;
-    }
-    
     if (projectPath === "") { // Should not happen with new UI, but good to have
       this.sidebar.displayProject(null);
       this.titlebar.setCurrentProjectName(null);
@@ -192,6 +205,29 @@ class App {
     }
   }
   
+  // Helper function to refresh project list and UI state
+  async refreshProjects() {
+    const currentProjectPath = this.sidebar.currentProject?.path;
+
+    // Reload projects from main process
+    await this.sidebar.loadProjects(); // This updates this.sidebar.projects internally
+
+    const currentProjectStillExists = currentProjectPath && 
+        this.sidebar.projects.some(p => p.path === currentProjectPath);
+
+    if (currentProjectStillExists) {
+        // Project list changed, but our current project is safe. Just update the UI.
+        this.titlebar.updateProjectList(this.sidebar.projects, currentProjectPath);
+    } else {
+        // The current project was removed (untracked or deleted). Reset the view.
+        this.sidebar.displayProject(null);
+        this.editor.showWelcomeMessage();
+        this.titlebar.setCurrentProjectName(null);
+        this.titlebar.updateProjectList(this.sidebar.projects, null);
+    }
+  }
+
+
   showMainView() {
     document.getElementById('app-view').classList.remove('hidden');
     document.getElementById('settings-view').classList.add('hidden');

@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('api', {
   getNoteHistory: (projectPath, filename) => ipcRenderer.invoke('get-note-history', { projectPath, filename }),
   getNoteVersionContent: (projectPath, hash) => ipcRenderer.invoke('get-note-version-content', { projectPath, hash }),
 
+  // --- Project Actions ---
+  untrackProject: (projectPath) => ipcRenderer.invoke('untrack-project', projectPath),
+  deleteProject: (projectPath) => ipcRenderer.invoke('delete-project', projectPath),
+
   // --- Window Controls ---
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),

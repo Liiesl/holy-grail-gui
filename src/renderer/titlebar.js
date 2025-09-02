@@ -4,6 +4,7 @@ export class Titlebar {
   constructor(container) {
     this.container = container;
     this.isContextMenuVisible = false;
+    this.projectRightClickMenu = null; // For right-click menu
     this.render();
     this.bindEvents();
   }
@@ -77,7 +78,16 @@ export class Titlebar {
       if (this.isContextMenuVisible && !this.projectModeBtn.contains(e.target)) {
         this.hideContextMenu();
       }
-    });
+      // Hide right-click menu on any left click
+      this.hideProjectRightClickMenu();
+     });
+
+    // Hide right-click menu if another context menu is opened
+    document.addEventListener('contextmenu', (e) => {
+        if (this.projectRightClickMenu && !this.projectRightClickMenu.contains(e.target)) {
+            this.hideProjectRightClickMenu();
+        }
+    }, true); // Use capture phase to catch it early
   }
 
   toggleContextMenu() {
@@ -116,6 +126,13 @@ export class Titlebar {
                     bubbles: true
                 }));
                 this.hideContextMenu();
+            });
+
+            // Add right-click listener
+            li.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.showProjectRightClickMenu(e, p);
             });
             this.projectContextMenu.appendChild(li);
         });
@@ -160,5 +177,43 @@ export class Titlebar {
       if (pageHistoryBtn) {
           pageHistoryBtn.disabled = !isAvailable;
       }
+  }
+
+  // Methods for right-click context menu
+  showProjectRightClickMenu(event, project) {
+    this.hideProjectRightClickMenu(); // Close any existing menu
+
+    this.projectRightClickMenu = document.createElement('ul');
+    this.projectRightClickMenu.className = 'project-right-click-menu';
+    this.projectRightClickMenu.innerHTML = `
+        <li class="menu-item" data-action="untrack_project" data-path="${project.path}">Untrack Project</li>
+        <li class="menu-item menu-item-danger" data-action="delete_project" data-path="${project.path}">Delete Project...</li>
+    `;
+    
+    document.body.appendChild(this.projectRightClickMenu);
+
+    this.projectRightClickMenu.style.top = `${event.clientY}px`;
+    this.projectRightClickMenu.style.left = `${event.clientX}px`;
+
+    this.projectRightClickMenu.addEventListener('click', (e) => {
+        const item = e.target.closest('.menu-item');
+        if (item) {
+            const action = item.dataset.action;
+            const path = item.dataset.path;
+            
+            this.container.dispatchEvent(new CustomEvent('projectAction', {
+                detail: { action, path },
+                bubbles: true
+            }));
+        }
+        this.hideProjectRightClickMenu(); // Hide after action
+    });
+  }
+
+  hideProjectRightClickMenu() {
+    if (this.projectRightClickMenu) {
+        this.projectRightClickMenu.remove();
+        this.projectRightClickMenu = null;
+    }
   }
 }

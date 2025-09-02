@@ -42,6 +42,16 @@ function registerIpcHandlers() {
     return projectManager.getNoteVersionContent(payload);
   });
   
+  // --- NEW: Project Actions ---
+  ipcMain.handle('untrack-project', (event, projectPath) => {
+    return projectManager.untrackProject(projectPath);
+  });
+ 
+  ipcMain.handle('delete-project', (event, projectPath) => {
+    // Pass the event to get the window for the dialog
+    return projectManager.deleteProject(event, projectPath);
+  });
+
   // --- NEW: Settings Handlers ---
   ipcMain.handle('get-settings', async () => {
     return readSettings();

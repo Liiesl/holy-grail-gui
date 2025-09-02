@@ -167,3 +167,39 @@
     background-color: var(--color-hover);
     color: var(--color-text);
 }
+
+/* NEW: Right-click context menu for projects */
+.project-right-click-menu {
+    position: fixed; /* Use fixed positioning to place relative to viewport */
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 180px;
+    z-index: 10001; /* Higher than titlebar */
+    padding: 4px;
+    list-style: none;
+}
+
+.project-right-click-menu .menu-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.project-right-click-menu .menu-item:hover {
+    background-color: var(--color-hover);
+}
+
+.project-right-click-menu .menu-item-danger {
+    color: var(--color-danger);
+}
+
+.project-right-click-menu .menu-item-danger:hover {
+    background-color: var(--color-danger);
+    color: var(--color-text-on-dark);
+}

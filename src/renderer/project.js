@@ -13,6 +13,14 @@ export class ProjectManager {
     return window.api.addProject();
   }
 
+  async untrackProject(projectPath) {
+    return window.api.untrackProject(projectPath);
+  }
+
+  async deleteProject(projectPath) {
+    return window.api.deleteProject(projectPath);
+   }
+
   async getNotes(projectPath) {
     return window.api.getNotes(projectPath);
   }
