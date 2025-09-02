@@ -48,11 +48,11 @@
     line-height: 1.6;
     outline: none;
     overflow-y: auto;
-    background-color: var(--color-surface);
+    background-color: var(--color-background);
 }
 
 #editor.readonly {
-    background-color: var(--color-surface-alt);
+    background-color: var(--color-background);
     color: var(--color-secondary);
 }
 

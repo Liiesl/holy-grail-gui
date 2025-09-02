@@ -1,10 +1,52 @@
 /* src/renderer/settings.css */
 
+/* NEW: Styles for the modal overlay */
+.settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(25, 25, 25, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+}
+
+.settings-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* MODIFIED: .settings-container is now the modal panel */
 .settings-container {
-    height: 100vh;
+    /* height: 100vh; */ /* <- REMOVED */
+    height: 85vh;
+    max-height: 700px;
+    width: 90vw;
+    max-width: 950px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    overflow: hidden; /* Ensures content respects the border-radius */
+    
     display: flex;
     flex-direction: column;
     background-color: var(--color-background);
+
+    /* NEW: Animation for panel appearance */
+    transform: scale(0.95);
+    transition: transform 0.2s ease-in-out;
+}
+
+/* NEW: Animate the panel when the overlay is visible */
+.settings-overlay.visible .settings-container {
+    transform: scale(1);
 }
 
 .settings-header {

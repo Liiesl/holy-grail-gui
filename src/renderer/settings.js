@@ -78,7 +78,15 @@ export class Settings {
 
 
   addEventListeners() {
-    // Handle closing the settings view
+    // NEW: Handle clicking the overlay to close
+    this.container.addEventListener('click', (e) => {
+      // If the direct target of the click is the overlay itself, not the panel
+      if (e.target === this.container) {
+        this.emit('closeSettings');
+      }
+    });
+
+    // Handle closing the settings view with the button
     this.container.querySelector('#settings-close-btn').addEventListener('click', () => {
       this.emit('closeSettings');
     });

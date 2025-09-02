@@ -15,6 +15,7 @@ class App {
     this.initComponents();
     this.connectComponents();
     this.start();
+    this.handleEscKey = this.handleEscKey.bind(this); // Bind context for event listener
   }
 
   renderLayout() {
@@ -26,7 +27,7 @@ class App {
         <div id="app-main" class="main-content"></div>
         <div id="app-chat" class="chat-panel"></div>
       </div>
-      <div id="settings-view" class="hidden"></div>
+      <div id="settings-modal" class="settings-overlay"></div>
     `;
   }
 
@@ -39,7 +40,7 @@ class App {
     const titlebarContainer = document.getElementById('app-titlebar');
     const sidebarContainer = document.getElementById('app-sidebar');
     const mainContainer = document.getElementById('app-main');
-    const settingsContainer = document.getElementById('settings-view');
+    const settingsContainer = document.getElementById('settings-modal'); // Updated ID
     const chatContainer = document.getElementById('app-chat');
 
     this.titlebar = new Titlebar(titlebarContainer); // Initialize the titlebar
@@ -52,7 +53,9 @@ class App {
   connectComponents() {
     // --- Titlebar to App connections ---
     this.titlebar.container.addEventListener('sidebarToggle', () => {
-      document.getElementById('app-view').classList.toggle('sidebar-collapsed');
+      const isCollapsed = document.getElementById('app-view').classList.toggle('sidebar-collapsed');
+      // Also toggle a class on the titlebar for styling synchronization
+      document.getElementById('app-titlebar').classList.toggle('sidebar-collapsed', isCollapsed);
       this.updateSession();
     });
 
@@ -296,6 +299,7 @@ class App {
     // Restore UI toggles
     if (session.sidebarCollapsed) {
       document.getElementById('app-view').classList.add('sidebar-collapsed');
+      document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
     }
     if (session.chatVisible) {
       document.getElementById('app-view').classList.add('chat-visible');
@@ -326,15 +330,24 @@ class App {
     }
   }
 
+  // NEW method to handle escape key for modal
+  handleEscKey(e) {
+    if (e.key === 'Escape') {
+      this.showMainView();
+    }
+  }
+
   showMainView() {
-    document.getElementById('app-view').classList.remove('hidden');
-    document.getElementById('settings-view').classList.add('hidden');
+    document.getElementById('app').classList.remove('modal-open');
+    document.getElementById('settings-modal').classList.remove('visible');
+    window.removeEventListener('keydown', this.handleEscKey);
   }
 
   async showSettingsView() {
     await this.settings.loadCurrentSettings(); // Load data before showing
-    document.getElementById('app-view').classList.add('hidden');
-    document.getElementById('settings-view').classList.remove('hidden');
+    document.getElementById('app').classList.add('modal-open');
+    document.getElementById('settings-modal').classList.add('visible');
+    window.addEventListener('keydown', this.handleEscKey);
   }
 
   async start() {

@@ -26,6 +26,20 @@
     flex-shrink: 0;
 }
 
+.titlebar-controls-left {
+    width: 280px;
+    border-right: 1px solid var(--color-border);
+    transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, border-color 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+#app-titlebar.sidebar-collapsed .titlebar-controls-left {
+    width: 0;
+    padding: 0;
+    border-right-color: transparent;
+}
+
+
 .titlebar-drag-region {
     flex-grow: 1;
     height: 100%;
@@ -39,6 +53,7 @@
     border-radius: 6px;
     padding: 2px;
     gap: 4px; /* Spacing between mode buttons */
+    width: 100%;
 }
 
 .titlebar-mode-switcher .mode-btn {
@@ -55,13 +70,26 @@
     padding: 0 8px;
     gap: 6px;
     font-size: 14px;
-    position: relative; /* For context menu positioning */
     -webkit-app-region: no-drag;
+    flex-shrink: 0;
+}
+
+/* Wrapper for project button and its menu */
+#project-mode-wrapper {
+    position: relative; 
+    display: flex;
+    flex-grow: 1;
+}
+
+#project-mode-btn {
+    width: 100%; /* Make button fill the wrapper */
+    justify-content: flex-start;
+    overflow: hidden;
 }
 
 /* Specific style for icon-only buttons */
 .titlebar-mode-switcher .mode-btn.icon-only {
-    width: 32px;
+    width: 40px;
     padding: 0;
     font-size: 16px;
 }
@@ -93,19 +121,21 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* Add some margin to separate from the icon */
+    margin-right: auto;
 }
 
 .mode-btn .switcher-icon {
     font-size: 12px;
     color: var(--color-secondary);
+    margin-left: 4px;
 }
 
 /* Project Context Menu */
 #project-context-menu {
     display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
+    position: fixed; /* Use fixed to break out of all parent overflow containers */
+    /* top and left will be set by JavaScript */
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 6px;

@@ -16,9 +16,9 @@ async function createWindow() {
     ...(session.windowBounds || { width: 1000, height: 700 }),
     titleBarStyle: 'hidden', // Hides the title bar but keeps controls
     titleBarOverlay: {
-      color: '#2f3241', // A fallback background color (var(--color-surface-alt))
+      color: '#191919', // A fallback background color (var(--color-surface-alt))
       symbolColor: '#c2c8e2', // The color of the icons (var(--color-text))
-      height: 40 // Must match your CSS height
+      height: 39 // Must match your CSS height
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

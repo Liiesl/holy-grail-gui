@@ -12,7 +12,8 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 async function readSettings() {
   const defaults = {
     projects: [],
-    geminiApiKey: ''
+    geminiApiKey: '',
+    session: null
   };
   try {
     await fs.access(settingsPath);

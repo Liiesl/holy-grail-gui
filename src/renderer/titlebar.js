@@ -13,12 +13,14 @@ export class Titlebar {
     this.container.innerHTML = `
       <div class="titlebar-controls-left">
         <div class="titlebar-mode-switcher">
-          <button id="project-mode-btn" class="mode-btn active" data-mode="project" title="Project Explorer">
-            <i class="fas fa-folder"></i>
-            <i class="fas fa-sort switcher-icon"></i>
-            <span id="current-project-name">No Project</span>
-            <ul id="project-context-menu"></ul>
-          </button>
+          <!-- The wrapper is still useful for layout -->
+          <div id="project-mode-wrapper">
+            <button id="project-mode-btn" class="mode-btn active" data-mode="project" title="Project Explorer">
+              <i class="fas fa-folder"></i>
+              <i class="fas fa-sort switcher-icon" style="font-size: 8px; margin-bottom: 1px;"></i>
+              <span id="current-project-name">No Project</span>
+            </button>
+          </div>
           <button class="mode-btn icon-only" data-mode="pageHistory" title="Page History" disabled><i class="fas fa-history"></i></button>
           <button class="mode-btn icon-only" data-mode="projectHistory" title="Project History (coming soon)" disabled><i class="fas fa-code-branch"></i></button>
         </div>
@@ -29,6 +31,9 @@ export class Titlebar {
       </div>
 
       <div class="titlebar-drag-region"></div>
+
+      <!-- THE CONTEXT MENU IS MOVED HERE - outside the clipping container -->
+      <ul id="project-context-menu"></ul>
     `;
     this.modeButtons = this.container.querySelectorAll('.titlebar-mode-switcher .mode-btn');
     this.projectModeBtn = this.container.querySelector('#project-mode-btn');
@@ -92,6 +97,16 @@ export class Titlebar {
 
   toggleContextMenu() {
     this.isContextMenuVisible = !this.isContextMenuVisible;
+
+    if (this.isContextMenuVisible) {
+      // --- NEW POSITIONING LOGIC ---
+      // When showing the menu, calculate its position based on the button
+      const buttonRect = this.projectModeBtn.getBoundingClientRect();
+      this.projectContextMenu.style.left = `${buttonRect.left}px`;
+      this.projectContextMenu.style.top = `${buttonRect.bottom + 4}px`; // 4px margin below button
+      this.projectContextMenu.style.minWidth = `${buttonRect.width}px`;
+    }
+
     this.projectContextMenu.classList.toggle('visible', this.isContextMenuVisible);
   }
 
