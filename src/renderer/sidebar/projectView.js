@@ -1,3 +1,4 @@
+// src/renderer/projectView.js
 
 /**
  * Manages the Project/File Explorer view in the sidebar.
@@ -29,21 +30,28 @@ export class ProjectView {
 
   render() {
     this.container.innerHTML = `
-      <div class="view-header">
-        <span class="view-header-title">Explorer</span>
-        <button id="new-note-btn" title="New Note">+</button>
+      <div class="search-container">
+        <input type="text" class="search-input" placeholder="Search pages...">
+        <div class="search-shortcut">Ctrl K</div>
       </div>
       <ul id="file-tree"></ul>
+      <div class="project-view-actions">
+          <button id="new-page-btn" class="new-page-btn">
+              <span>+</span>
+              <span>New Page</span>
+          </button>
+          <div class="divider"></div>
+      </div>
     `;
   }
 
   initElements() {
     this.fileTree = this.container.querySelector('#file-tree');
-    this.newNoteBtn = this.container.querySelector('#new-note-btn');
+    this.newPageBtn = this.container.querySelector('#new-page-btn');
   }
 
   addEventListeners() {
-    this.newNoteBtn.addEventListener('click', () => {
+    this.newPageBtn.addEventListener('click', () => {
       if (!this.currentProject) return;
       this.currentFile = null; // Deselect current file
       this.emit('newNoteClicked', this.currentProject);
@@ -54,7 +62,7 @@ export class ProjectView {
     this.currentProject = project;
     this.currentFile = null; // Reset file selection
     if (!this.currentProject) {
-      this.fileTree.innerHTML = '<li>Select a project to see notes.</li>';
+      this.fileTree.innerHTML = '<li>Select a project to see pages.</li>';
       return;
     }
 
@@ -64,7 +72,7 @@ export class ProjectView {
     notes.sort((a, b) => a.name.localeCompare(b.name));
 
     if (notes.length === 0) {
-        this.fileTree.innerHTML = '<li>No notes in this project. Click + to create one.</li>';
+        this.fileTree.innerHTML = '<li>No pages in this project. Click "+ New Page" to create one.</li>';
         return;
     }
 

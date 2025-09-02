@@ -9,7 +9,7 @@
 @import url("chat.css"); /* Added import for chat */
 
 :root {
-    /* ... (rest of :root is unchanged) ... */
+    /* ... (:root is unchanged) ... */
     --color-primary: #0a84ff;         /* A slightly brighter blue for better contrast */
     --color-secondary: #8e8e93;       /* For secondary text and UI elements */
     --color-danger: #ff453a;          /* A brighter red for visibility */
@@ -23,7 +23,7 @@
     --color-surface-alt: #161618;    /* Sidebar, readonly fields, etc. */
     --color-dark-surface: #3a3a3c;     /* For distinct UI like a floating toolbar (now a lighter dark shade) */
     
-    --color-border: #38383a;
+    --color-border: #5E5E5D;
     
     --color-hover: #3a3a3c;            /* For hovering over dark surface elements */
     --color-active: #4a4a4c;           /* For active/selected state on dark surfaces */
@@ -44,14 +44,20 @@ body {
     color: var(--color-text);
     overflow: hidden;
     /* --- NEW: Add padding to the top of the body to make space for the fixed title bar --- */
-    padding-top: 32px;
+    padding-top: 40px;
 }
 
 #app-view {
     display: flex;
     /* Adjust height to account for the new padding on the body */
-    height: calc(100vh - 32px);
+    height: calc(100vh - 40px);
     overflow: hidden; /* Prevent scrollbars during transition */
+}
+
+/* NEW: Styles for sidebar collapse */
+#app-view.sidebar-collapsed #app-sidebar {
+    width: 0;
+    border-right-color: transparent; /* Hide border when collapsed */
 }
 
 /* NEW: Styles for chat panel toggle */

@@ -49,15 +49,33 @@ class App {
     this.chat = new Chat(chatContainer); // Initialize chat component
   }
 
-  // ... (rest of the file is unchanged) ...
-  
   connectComponents() {
+    // --- Titlebar to App connections ---
+    this.titlebar.container.addEventListener('sidebarToggle', () => {
+      document.getElementById('app-view').classList.toggle('sidebar-collapsed');
+    });
+
+    this.titlebar.container.addEventListener('modeChange', (e) => {
+      const mode = e.detail.mode;
+      if (mode === 'project') {
+        this.sidebar.showProjectView();
+      } else if (mode === 'pageHistory') {
+        this.sidebar.showHistoryView();
+      }
+      // 'projectHistory' is disabled for now.
+    });
+
+    // NEW: Handle project selection from titlebar
+    this.titlebar.container.addEventListener('projectChange', (e) => {
+        this.handleProjectSelection(e.detail.path);
+    });
+    
     // --- Editor to App connection ---
     this.editor.on('chatToggled', () => {
       document.getElementById('app-view').classList.toggle('chat-visible');
     });
 
-    // --- Sidebar to Editor connections ---
+    // --- Sidebar to App/Other Components connections ---
 
     this.sidebar.on('projectSelected', (project) => {
       const success = this.editor.showWelcomeMessage();
@@ -79,6 +97,16 @@ class App {
       }
     });
     
+    // New connection to manage history button availability
+    this.sidebar.on('currentFileChanged', ({ hasFile }) => {
+        this.titlebar.setHistoryModeAvailable(hasFile);
+        // If file is deselected and we are in history view, switch back
+        if (!hasFile) {
+            this.sidebar.showProjectView();
+            this.titlebar.setActiveMode('project');
+        }
+    });
+
     this.sidebar.on('newNoteClicked', (project) => {
       const success = this.editor.clearAndFocus();
       if (success) {
@@ -101,7 +129,7 @@ class App {
         this.editor.setReadOnly(true);
     });
 
-    // --- Editor to Sidebar connections ---
+    // --- Editor to Sidebar/Titlebar connections ---
 
     this.editor.on('dirtyStateChanged', ({ isDirty }) => {
       this.sidebar.setEditorDirty(isDirty);
@@ -117,6 +145,7 @@ class App {
       if (isRestore) {
         // If it was a restore, exit history mode
         this.sidebar.showProjectView();
+        this.titlebar.setActiveMode('project');
       }
     });
     
@@ -128,12 +157,39 @@ class App {
     this.editor.on('historyClicked', () => {
       if (this.editor.currentProject && this.editor.currentFile) {
         this.sidebar.showHistoryView();
+        this.titlebar.setActiveMode('pageHistory'); // NEW: Update titlebar state
       }
     });
 
     // --- View Switching Connections ---
     this.sidebar.on('settingsClicked', () => this.showSettingsView());
     this.settings.on('closeSettings', () => this.showMainView());
+  }
+
+  // NEW: Centralized project selection logic
+  async handleProjectSelection(projectPath) {
+    if (projectPath === 'add_new_project') {
+        const added = await this.projectManager.addProject();
+        if (added) {
+            // Reload projects and update titlebar
+            await this.sidebar.loadProjects();
+            this.titlebar.updateProjectList(this.sidebar.projects, this.sidebar.currentProject?.path);
+        }
+        return;
+    }
+    
+    if (projectPath === "") { // Should not happen with new UI, but good to have
+      this.sidebar.displayProject(null);
+      this.titlebar.setCurrentProjectName(null);
+      this.titlebar.updateProjectList(this.sidebar.projects, null);
+    } else {
+      const project = this.sidebar.projects.find(p => p.path === projectPath);
+      if (project) {
+        this.sidebar.displayProject(project);
+        this.titlebar.setCurrentProjectName(project.name);
+        this.titlebar.updateProjectList(this.sidebar.projects, project.path);
+      }
+    }
   }
   
   showMainView() {
@@ -152,6 +208,8 @@ class App {
     const loader = document.getElementById('loader');
     
     await this.sidebar.loadProjects();
+    // NEW: Initialize titlebar with project list
+    this.titlebar.updateProjectList(this.sidebar.projects, null);
     
     loader.classList.add('hidden');
     appContainer.classList.remove('hidden');

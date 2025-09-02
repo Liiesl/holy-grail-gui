@@ -1,91 +1,53 @@
 /* sidebar.css */
 
 .sidebar {
-    /* Combined width of mode switcher and content */
     width: 280px; 
     background-color: var(--color-surface-alt);
     border-right: 1px solid var(--color-border);
     display: flex;
-}
-
-.sidebar-mode-switcher {
-    width: 50px;
-    background-color: var(--color-background);
-    padding: 10px 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between; /* Pushes top and bottom groups apart */
-    align-items: center;
-    border-right: 1px solid var(--color-border);
+    flex-direction: column; /* Key change for footer */
     flex-shrink: 0;
+    overflow: hidden;
+    transition: width 0.3s ease-in-out, border-color 0.3s ease-in-out;
 }
 
-.mode-group-top, .mode-group-bottom {
+.sidebar-main-content {
+    flex-grow: 1; /* Take up all available vertical space */
     display: flex;
     flex-direction: column;
-    align-items: center;
-    width: 100%;
+    overflow: hidden; /* Important for containing the scrolling list */
 }
 
-.mode-btn {
-    width: 40px;
-    height: 40px;
-    margin-bottom: 10px;
+/* New Footer Section */
+.sidebar-footer {
+    flex-shrink: 0; /* Don't shrink the footer */
+    padding: 8px;
+}
+
+.sidebar-footer-btn {
+    width: 100%;
+    padding: 8px 12px;
     background-color: transparent;
     border: none;
-    border-left: 2px solid transparent;
-    border-radius: 0;
+    border-radius: 4px;
     color: var(--color-secondary);
-    font-size: 24px;
+    font-size: 14px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: left;
     transition: all 0.2s ease-in-out;
 }
 
-.mode-btn:hover {
+.sidebar-footer-btn:hover {
+    background-color: var(--color-hover);
     color: var(--color-text);
 }
 
-.mode-btn.active {
-    color: var(--color-primary);
-    border-left-color: var(--color-primary);
-}
-
-.mode-btn:disabled {
-    color: var(--color-border);
-    cursor: not-allowed;
-}
-
-.sidebar-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* Prevents content from spilling out */
-}
-
-.sidebar-header {
-    padding: 10px;
-    border-bottom: 1px solid var(--color-border);
-    flex-shrink: 0;
-}
-
-#project-selector {
-    width: 100%;
-    padding: 8px;
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    font-size: 14px;
-    -webkit-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238e8e93' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-    background-position: right 0.5rem center;
-    background-repeat: no-repeat;
-    background-size: 1.5em 1.5em;
-    padding-right: 2.5rem;
+.sidebar-footer-btn span {
+    font-weight: 500;
 }
 
 #project-view-container, #history-view-container {
@@ -93,6 +55,97 @@
     flex-direction: column;
     height: 100%;
 }
+
+/* --- START: UI OVERHAUL STYLES --- */
+
+/* Search Bar Styles */
+.search-container {
+    position: relative;
+    padding: 10px;
+    flex-shrink: 0;
+}
+
+.search-input {
+    width: 100%;
+    padding: 8px 12px;
+    padding-right: 65px; /* Space for the shortcut */
+    border: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--color-text);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.search-input::placeholder {
+    color: var(--color-secondary);
+}
+
+.search-input:focus {
+    border-color: var(--color-accent);
+}
+
+.search-shortcut {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    color: var(--color-secondary);
+    pointer-events: none; /* So it doesn't interfere with input clicks */
+}
+
+
+/* New Page Button and Divider Area */
+.project-view-actions {
+    flex-shrink: 0;
+    padding: 0 8px 8px 8px; /* Padding for the container */
+}
+
+.new-page-btn {
+    width: 100%;
+    padding: 6px 10px;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--color-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: left;
+    transition: all 0.2s ease-in-out;
+}
+
+.new-page-btn:hover {
+    background-color: var(--color-hover);
+    color: var(--color-text);
+}
+
+.new-page-btn span:first-child {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.new-page-btn span:last-child {
+    font-weight: 500;
+}
+
+.divider {
+    height: 1px;
+    background-color: var(--color-border);
+    margin-top: 8px;
+}
+
+/* --- END: UI OVERHAUL STYLES --- */
+
 
 .view-header {
     display: flex;
@@ -138,9 +191,13 @@
 #file-tree, #history-list {
     list-style: none;
     overflow-y: auto;
-    flex-grow: 1;
     margin: 0;
     padding: 0;
+}
+
+/* Add padding below the file list for spacing */
+#file-tree {
+    padding-bottom: 8px;
 }
 
 #file-tree li, #history-list li {
@@ -150,7 +207,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 14px;
-    border-bottom: 1px solid var(--color-border);
 }
 
 #file-tree li:hover, #history-list li:hover {

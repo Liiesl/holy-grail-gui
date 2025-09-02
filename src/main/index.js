@@ -13,7 +13,7 @@ function createWindow() {
     titleBarOverlay: {
       color: '#2f3241', // A fallback background color (var(--color-surface-alt))
       symbolColor: '#c2c8e2', // The color of the icons (var(--color-text))
-      height: 32 // Must match your CSS height
+      height: 40 // Must match your CSS height
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

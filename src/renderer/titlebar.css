@@ -2,46 +2,168 @@
 
 #app-titlebar {
     display: flex;
-    justify-content: flex-start; /* Align items to the start */
+    justify-content: space-between;
     align-items: center;
-    height: 32px; /* Must match titleBarOverlay.height in main process */
+    height: 40px;
     background-color: var(--color-surface-alt);
     color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
     user-select: none;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     z-index: 9999;
-    /* The whole bar is draggable by default */
     -webkit-app-region: drag;
 }
 
-/* This is our new container for menu items */
-.titlebar-menu {
+.titlebar-controls-left, .titlebar-controls-right {
     display: flex;
     align-items: center;
-    padding-left: 8px;
-    /* CRITICAL: Mark the menu area as non-draggable so items can be clicked */
+    height: 100%;
+    padding: 0 8px;
     -webkit-app-region: no-drag;
+    flex-shrink: 0;
 }
 
-.titlebar-menu-item {
-    font-size: 13px;
-    padding: 8px 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.2s ease-in-out;
-}
-
-.titlebar-menu-item:hover {
-    background-color: var(--color-hover);
-}
-
-/* This fills the remaining empty space and makes ONLY it draggable */
 .titlebar-drag-region {
     flex-grow: 1;
     height: 100%;
-    /* This element's only purpose is to be the draggable area */
-    /* It inherits -webkit-app-region: drag from its parent #app-titlebar */
+}
+
+/* Mode Switcher Styles */
+.titlebar-mode-switcher {
+    display: flex;
+    align-items: center;
+    background-color: var(--color-background);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 4px; /* Spacing between mode buttons */
+}
+
+.titlebar-mode-switcher .mode-btn {
+    height: 28px;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--color-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease-in-out;
+    padding: 0 8px;
+    gap: 6px;
+    font-size: 14px;
+    position: relative; /* For context menu positioning */
+    -webkit-app-region: no-drag;
+}
+
+/* Specific style for icon-only buttons */
+.titlebar-mode-switcher .mode-btn.icon-only {
+    width: 32px;
+    padding: 0;
+    font-size: 16px;
+}
+
+.titlebar-mode-switcher .mode-btn:hover:not(:disabled) {
+    background-color: var(--color-hover);
+    color: var(--color-text);
+}
+
+.titlebar-mode-switcher .mode-btn.active {
+    background-color: var(--color-active);
+    color: var(--color-text-on-dark);
+}
+
+.titlebar-mode-switcher .mode-btn.active .switcher-icon,
+.titlebar-mode-switcher .mode-btn.active #current-project-name {
+    color: var(--color-text-on-dark);
+}
+
+
+.titlebar-mode-switcher .mode-btn:disabled {
+    color: var(--color-border);
+    cursor: not-allowed;
+}
+
+#current-project-name {
+    font-weight: 500;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mode-btn .switcher-icon {
+    font-size: 12px;
+    color: var(--color-secondary);
+}
+
+/* Project Context Menu */
+#project-context-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 200px;
+    z-index: 10000;
+    padding: 4px;
+    list-style: none;
+}
+
+#project-context-menu.visible {
+    display: block;
+}
+
+#project-context-menu .menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+#project-context-menu .menu-item:hover {
+    background-color: var(--color-hover);
+}
+
+#project-context-menu .menu-item .checkmark {
+    font-size: 16px;
+    color: var(--color-primary);
+}
+
+#project-context-menu .menu-separator {
+    height: 1px;
+    background-color: var(--color-border);
+    margin: 4px 0;
+}
+
+
+/* Right-side action button (sidebar toggle) */
+.titlebar-action-btn {
+    width: 32px;
+    height: 24px;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--color-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.titlebar-action-btn:hover {
+    background-color: var(--color-hover);
+    color: var(--color-text);
 }

@@ -3,31 +3,162 @@
 export class Titlebar {
   constructor(container) {
     this.container = container;
+    this.isContextMenuVisible = false;
     this.render();
-    // You can re-add event binding here for your new menu items
-    this.bindMenuEvents(); 
+    this.bindEvents();
   }
 
   render() {
-    // Add the HTML structure for a menu
     this.container.innerHTML = `
-      <div class="titlebar-menu">
-        <!-- You could add a logo here -->
-        <!-- <img src="path/to/icon.png" class="titlebar-icon" /> -->
-        <div class="titlebar-menu-item">File</div>
-        <div class="titlebar-menu-item">Edit</div>
-        <div class="titlebar-menu-item">View</div>
-        <div class="titlebar-menu-item">Help</div>
+      <div class="titlebar-controls-left">
+        <div class="titlebar-mode-switcher">
+          <button id="project-mode-btn" class="mode-btn active" data-mode="project" title="Project Explorer">
+            <i class="fas fa-folder"></i>
+            <i class="fas fa-sort switcher-icon"></i>
+            <span id="current-project-name">No Project</span>
+            <ul id="project-context-menu"></ul>
+          </button>
+          <button class="mode-btn icon-only" data-mode="pageHistory" title="Page History" disabled><i class="fas fa-history"></i></button>
+          <button class="mode-btn icon-only" data-mode="projectHistory" title="Project History (coming soon)" disabled><i class="fas fa-code-branch"></i></button>
+        </div>
       </div>
+
+      <div class="titlebar-controls-right">
+        <button id="sidebar-toggle-btn" class="titlebar-action-btn" title="Toggle Sidebar"><i class="fas fa-bars"></i></button>
+      </div>
+
       <div class="titlebar-drag-region"></div>
     `;
+    this.modeButtons = this.container.querySelectorAll('.titlebar-mode-switcher .mode-btn');
+    this.projectModeBtn = this.container.querySelector('#project-mode-btn');
+    this.currentProjectNameEl = this.container.querySelector('#current-project-name');
+    this.projectContextMenu = this.container.querySelector('#project-context-menu');
   }
 
-  bindMenuEvents() {
-    // Example: Add a click listener to the 'File' menu item
-    this.container.querySelector('.titlebar-menu-item').addEventListener('click', () => {
-      console.log('File menu clicked!');
-      // In a real app, you would open a custom dropdown menu here
+  bindEvents() {
+    // Mode switcher
+    this.modeButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const mode = button.dataset.mode;
+        const isProjectButton = mode === 'project';
+
+        if (isProjectButton) {
+          e.stopPropagation(); // Prevent document click listener from firing immediately
+        }
+
+        if (button.classList.contains('active')) {
+          // If the active button is clicked, only the project button has a special action
+          if (isProjectButton) {
+            this.toggleContextMenu();
+          }
+          return; // For other buttons, do nothing if they are already active
+        }
+        
+        if (button.disabled) return;
+        
+        // If a non-active button was clicked, activate it
+        this.setActiveMode(mode);
+        this.hideContextMenu(); // Always hide menu when switching modes
+
+        this.container.dispatchEvent(new CustomEvent('modeChange', {
+          detail: { mode: mode },
+          bubbles: true
+        }));
+      });
     });
+
+    // Sidebar toggle
+    this.container.querySelector('#sidebar-toggle-btn').addEventListener('click', () => {
+      this.container.dispatchEvent(new CustomEvent('sidebarToggle', { bubbles: true }));
+    });
+
+    // Hide context menu when clicking elsewhere
+    document.addEventListener('click', (e) => {
+      if (this.isContextMenuVisible && !this.projectModeBtn.contains(e.target)) {
+        this.hideContextMenu();
+      }
+    });
+  }
+
+  toggleContextMenu() {
+    this.isContextMenuVisible = !this.isContextMenuVisible;
+    this.projectContextMenu.classList.toggle('visible', this.isContextMenuVisible);
+  }
+
+  hideContextMenu() {
+    if (!this.isContextMenuVisible) return;
+    this.isContextMenuVisible = false;
+    this.projectContextMenu.classList.remove('visible');
+  }
+
+  updateProjectList(projects, currentProjectPath) {
+    this.projectContextMenu.innerHTML = '';
+    
+    if (projects && projects.length > 0) {
+        projects.forEach(p => {
+            const li = document.createElement('li');
+            li.className = 'menu-item';
+            li.dataset.path = p.path;
+            const isCurrent = p.path === currentProjectPath;
+            
+            li.innerHTML = `
+                <span>${p.name}</span>
+                ${isCurrent ? '<span class="checkmark">✓</span>' : ''}
+            `;
+            
+            li.addEventListener('click', () => {
+                if (isCurrent) { // Don't fire event if clicking the current project
+                    this.hideContextMenu();
+                    return;
+                }
+                this.container.dispatchEvent(new CustomEvent('projectChange', {
+                    detail: { path: p.path },
+                    bubbles: true
+                }));
+                this.hideContextMenu();
+            });
+            this.projectContextMenu.appendChild(li);
+        });
+    } else {
+        const li = document.createElement('li');
+        li.className = 'menu-item';
+        li.style.fontStyle = 'italic';
+        li.textContent = 'No projects found.';
+        this.projectContextMenu.appendChild(li);
+    }
+
+    const separator = document.createElement('li');
+    separator.className = 'menu-separator';
+    this.projectContextMenu.appendChild(separator);
+
+    const addProjectLi = document.createElement('li');
+    addProjectLi.className = 'menu-item';
+    addProjectLi.textContent = '+ Add New Project...';
+    addProjectLi.dataset.action = 'add_new_project';
+    addProjectLi.addEventListener('click', () => {
+        this.container.dispatchEvent(new CustomEvent('projectAction', {
+            detail: { action: 'add_new_project' },
+            bubbles: true
+        }));
+        this.hideContextMenu();
+    });
+    this.projectContextMenu.appendChild(addProjectLi);
+  }
+  
+  setCurrentProjectName(name) {
+      this.currentProjectNameEl.textContent = name || 'No Project';
+  }
+
+  setActiveMode(mode) {
+    this.modeButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+  }
+
+  setHistoryModeAvailable(isAvailable) {
+      const pageHistoryBtn = this.container.querySelector('[data-mode="pageHistory"]');
+      if (pageHistoryBtn) {
+          pageHistoryBtn.disabled = !isAvailable;
+      }
   }
 }

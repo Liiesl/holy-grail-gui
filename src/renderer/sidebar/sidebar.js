@@ -22,32 +22,18 @@ export class Sidebar {
 
   render() {
     this.container.innerHTML = `
-      <div class="sidebar-mode-switcher">
-        <div class="mode-group-top">
-            <button id="mode-btn-files" class="mode-btn active" title="Explorer">&#128193;</button>
-            <button id="mode-btn-history" class="mode-btn" title="Version History" disabled>&#128337;</button>
-        </div>
-        <div class="mode-group-bottom">
-            <button id="mode-btn-settings" class="mode-btn" title="Settings">&#9881;</button>
-        </div>
-      </div>
-      <div class="sidebar-content">
-        <div class="sidebar-header">
-          <select id="project-selector">
-            <option>Loading projects...</option>
-          </select>
-        </div>
+      <div class="sidebar-main-content">
         <div id="project-view-container"></div>
         <div id="history-view-container" class="hidden"></div>
+      </div>
+      <div class="sidebar-footer">
+          <button id="settings-btn" class="sidebar-footer-btn" title="Settings">&#9881; <span>Settings</span></button>
       </div>
     `;
   }
 
   initElements() {
-    this.modeBtnFiles = this.container.querySelector('#mode-btn-files');
-    this.modeBtnHistory = this.container.querySelector('#mode-btn-history');
-    this.modeBtnSettings = this.container.querySelector('#mode-btn-settings'); // New button
-    this.projectSelector = this.container.querySelector('#project-selector');
+    this.settingsBtn = this.container.querySelector('#settings-btn');
     this.projectViewContainer = this.container.querySelector('#project-view-container');
     this.historyViewContainer = this.container.querySelector('#history-view-container');
   }
@@ -58,13 +44,7 @@ export class Sidebar {
   }
 
   addEventListeners() {
-    // Mode switching
-    this.modeBtnFiles.addEventListener('click', () => this.showProjectView());
-    this.modeBtnHistory.addEventListener('click', () => this.showHistoryView());
-    this.modeBtnSettings.addEventListener('click', () => this.emit('settingsClicked')); // Emit event
-    
-    // Project selection
-    this.projectSelector.addEventListener('change', (e) => this.handleProjectSelection(e.target.value));
+    this.settingsBtn.addEventListener('click', () => this.emit('settingsClicked'));
     
     // Bubble up events from child views
     this.projectView.on('fileSelected', (data) => {
@@ -88,38 +68,22 @@ export class Sidebar {
 
   async loadProjects() {
     this.projects = await this.projectManager.getProjects();
-    this.projectSelector.innerHTML = '<option value="">Select a Project...</option>';
-    this.projects.forEach(p => {
-        const option = new Option(p.name, p.path);
-        this.projectSelector.add(option);
-    });
-    // Add "Add Project" option at the end
-    this.projectSelector.add(new Option('+ Add New Project...', 'add_new_project'));
     this.projectView.load(null); // Clear project view
   }
 
-  async handleProjectSelection(projectPath) {
-    if (projectPath === 'add_new_project') {
-        await this.projectManager.addProject();
-        await this.loadProjects();
-        return;
-    }
+  // Called by App.js when a project is selected in the titlebar
+  displayProject(project) {
+    if (this.currentProject?.path === project?.path) return;
     
-    if (projectPath === "") {
-      this.currentProject = null;
-      this.setCurrentFile(null, null);
-      this.emit('projectSelected', null);
-    } else {
-      this.currentProject = this.projects.find(p => p.path === projectPath);
-      this.emit('projectSelected', this.currentProject);
-      this.setCurrentFile(this.currentProject, null);
-    }
-    this.projectView.load(this.currentProject);
+    this.currentProject = project;
+    this.setCurrentFile(project, null); // Deselect any open file from old project
+    this.projectView.load(project);
+    
+    // Let App.js know to update the editor, etc.
+    this.emit('projectSelected', project);
   }
 
   showProjectView() {
-    this.modeBtnFiles.classList.add('active');
-    this.modeBtnHistory.classList.remove('active');
     this.projectViewContainer.classList.remove('hidden');
     this.historyViewContainer.classList.add('hidden');
     // When returning to file view, tell editor to exit read-only mode if it was in it
@@ -128,8 +92,6 @@ export class Sidebar {
 
   showHistoryView() {
     if (!this.currentFile) return;
-    this.modeBtnFiles.classList.remove('active');
-    this.modeBtnHistory.classList.add('active');
     this.projectViewContainer.classList.add('hidden');
     this.historyViewContainer.classList.remove('hidden');
     this.historyView.load(this.currentProject, this.currentFile);
@@ -139,14 +101,12 @@ export class Sidebar {
     this.currentProject = project;
     this.currentFile = file;
     this.projectView.setCurrentFile(file);
-    // Enable/disable history button
-    this.modeBtnHistory.disabled = !file;
-    // If we deselect a file, clear history view and switch back to files
+    
+    // Emit an event so the App can tell the Titlebar to enable/disable history
+    this.emit('currentFileChanged', { hasFile: !!file });
+
     if (!file) {
       this.historyView.clear();
-      if(this.modeBtnHistory.classList.contains('active')) {
-          this.showProjectView();
-      }
     }
   }
   
