@@ -12,6 +12,7 @@ export class ProjectView {
     this.isEditorDirty = false;
     this.listeners = {};
     this.creatingWithParentId = null; // To store parentId during creation
+    this.notes = []; // NEW: To store the raw note data for easy lookup
 
     this.render();
     this.initElements();
@@ -65,11 +66,13 @@ export class ProjectView {
     this.currentFile = null; // Reset file selection
     if (!this.currentProject) {
       this.fileTree.innerHTML = '<li>Select a project to see pages.</li>';
+      this.notes = []; // Clear the notes cache
       return;
     }
 
     this.fileTree.innerHTML = '<li>Loading...</li>';
     const notes = await this.projectManager.getNotes(this.currentProject.path);
+    this.notes = notes; // Store the notes data
     this.fileTree.innerHTML = ''; // Clear
 
     if (notes.length === 0) {
@@ -94,6 +97,16 @@ export class ProjectView {
 
     this.renderNoteTree(rootNotes, this.fileTree);
     this.updateActiveNoteUI();
+  }
+
+  /**
+   * NEW: Finds the name of a note by its ID from the cached list.
+   * @param {string} noteId The unique ID of the note.
+   * @returns {string|null} The name of the note or null if not found.
+   */
+  getFileName(noteId) {
+    const note = this.notes.find(n => n.id === noteId);
+    return note ? note.name : null;
   }
 
   renderNoteTree(notes, parentElement) {
@@ -292,7 +305,7 @@ export class ProjectView {
       }
   }
 
-  // --- NEW METHODS FOR IN-PLACE EDITING ---
+  // --- METHODS FOR IN-PLACE EDITING ---
 
   beginCreateNewNote(parentId = null) { // Accept an optional parentId
     if (this.fileTree.querySelector('li.is-editing')) return;

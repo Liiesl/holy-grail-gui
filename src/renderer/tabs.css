@@ -1,0 +1,108 @@
+/* src/renderer/tabs.css */
+
+.tabs-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding-left: 10px;
+    flex-shrink: 0; /* Prevent the container from shrinking */
+}
+
+.tabs-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto; /* Allow scrolling if many tabs */
+    flex-grow: 1;
+}
+
+/* Hide scrollbar for webkit browsers */
+.tabs-list::-webkit-scrollbar {
+    display: none;
+}
+
+.tab-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-right: 1px solid var(--color-border);
+    position: relative;
+    color: var(--color-secondary);
+    background-color: var(--color-surface-alt);
+    white-space: nowrap;
+}
+
+.tab-item:hover {
+    background-color: var(--color-hover);
+}
+
+.tab-item.active {
+    background-color: var(--color-background);
+    color: var(--color-text);
+    border-bottom-color: transparent;
+}
+
+.tab-title {
+    margin-right: 8px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-item.dirty .tab-title::after {
+    content: ' ●';
+    font-size: 10px;
+    color: var(--color-primary);
+    vertical-align: middle;
+}
+
+.close-tab {
+    background: none;
+    border: none;
+    color: var(--color-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    border-radius: 50%;
+    line-height: 1;
+}
+
+.close-tab:hover {
+    background-color: var(--color-active);
+    color: var(--color-text);
+}
+
+.tab-actions {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+}
+
+.tab-action-btn {
+    background: none;
+    border: none;
+    color: var(--color-secondary);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+.tab-action-btn:hover:not(:disabled) {
+    background-color: var(--color-hover);
+    color: var(--color-text);
+}
+
+.tab-action-btn:disabled {
+    color: var(--color-border);
+    cursor: not-allowed;
+}
+
+.tab-action-btn.danger:hover:not(:disabled) {
+    color: var(--color-danger);
+}

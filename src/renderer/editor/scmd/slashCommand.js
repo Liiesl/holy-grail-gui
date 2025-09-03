@@ -18,9 +18,43 @@ export class SlashCommand {
       { name: 'Quote', command: 'blockquote', description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
       { name: 'Code Block', command: 'pre', description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
       { name: 'Divider', command: 'hr', description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },
+      { 
+        name: 'Emoji', 
+        command: 'emoji', 
+        description: 'Insert an emoji', 
+        action: (editor, triggerInfo) => {
+          // The trigger text (e.g., "/emoji") is deleted by the execute() method before this action is called.
+          // The range is collapsed where the text used to be.
+          const { range } = triggerInfo;
+          
+          const colonNode = document.createTextNode(':');
+          range.insertNode(colonNode);
+          
+          // Move cursor after the colon and prepare for the emoji picker
+          const sel = window.getSelection();
+          range.setStartAfter(colonNode);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+
+          // Manually trigger the emoji picker
+          const rect = range.getBoundingClientRect();
+          const editorRect = editor.container.getBoundingClientRect();
+          const position = {
+              top: rect.bottom - editorRect.top,
+              left: rect.left - editorRect.left,
+          };
+          
+          // The new range for the emoji picker is just the ":"
+          const emojiTriggerRange = document.createRange();
+          emojiTriggerRange.selectNode(colonNode);
+
+          const emojiTriggerInfo = { range: emojiTriggerRange, filter: '' };
+          editor.emojiPicker.show(position, emojiTriggerInfo);
+        }
+      },
       { name: 'Seek', command: 'seek', description: 'Find and link to another note', disabled: true },
-      { name: 'Open in left pane', command: 'open-left', description: 'Open a note side-by-side', disabled: true },
-      { name: 'Emoji', command: 'emoji', description: 'Insert an emoji', disabled: true },
+      { name: 'Open in right pane', command: 'open-right', description: 'Open a note side-by-side', disabled: true },
       { name: 'Table', command: 'table', description: 'Insert a table', disabled: true },
       { name: 'Switch page', command: 'switch', description: 'Quickly jump to another page', disabled: true },
     ];
@@ -145,7 +179,7 @@ export class SlashCommand {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       const command = this.filteredCommands[this.activeIndex];
-      if (command && !command.disabled) {
+      if (command) { // Allow executing disabled commands to show placeholder
         this.execute(command);
       }
       return true;
@@ -183,6 +217,13 @@ export class SlashCommand {
    * REVISED: This method now correctly targets the current line for block formatting.
    */
   execute(command) {
+    if (command.disabled && command.action) {
+      this.hide();
+      command.action();
+      return;
+    }
+    if (command.disabled) return;
+
     const { range } = this.triggerInfo;
     
     // 1. Find the block-level element (e.g., the <p>) that contains the trigger text.
@@ -203,14 +244,14 @@ export class SlashCommand {
       selection.addRange(newRange);
     }
     
-    // 4. Execute the command's specific action.
+    // 4. Hide the command menu BEFORE executing the action.
+    this.hide();
+
+    // 5. Execute the command's specific action.
     if (command.action) {
       // The selection is now correctly set up for the action to apply.
       command.action(this.editor, this.triggerInfo);
     }
-    
-    // 5. Hide the command menu.
-    this.hide();
     
     // 6. Ensure the editor is focused. The browser will place the cursor correctly after `execCommand`.
     this.editor.editorEl.focus();

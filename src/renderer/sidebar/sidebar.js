@@ -69,18 +69,28 @@ export class Sidebar {
     }
   }
 
+  /**
+   * NEW: Passthrough method to get a file name from the ProjectView.
+   * @param {string} noteId The unique ID of the note.
+   * @returns {string|null}
+   */
+  getFileName(noteId) {
+    return this.projectView.getFileName(noteId);
+  }
+
   async loadProjects() {
     this.projects = await this.projectManager.getProjects();
     this.projectView.load(null); // Clear project view
   }
 
   // Called by App.js when a project is selected in the titlebar
-  displayProject(project) {
+  async displayProject(project) {
     if (this.currentProject?.path === project?.path) return;
     
     this.currentProject = project;
     this.setCurrentFile(project, null); // Deselect any open file from old project
-    this.projectView.load(project);
+    // await is important here to ensure the file list is loaded before we might need it
+    await this.projectView.load(project);
     
     // Let App.js know to update the editor, etc.
     this.emit('projectSelected', project);

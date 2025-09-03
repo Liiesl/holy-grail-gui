@@ -4,16 +4,19 @@
 @import url("./sidebar/sidebar.css");
 @import url("./editor/editor.css");
 @import url("./editor/scmd/slashCommand.css");
+@import url("./editor/scmd/emojiPicker.css"); /* FIXED: Added import for emoji picker styles */
 @import url("settings.css");
-@import url("titlebar.css"); /* Added import for titlebar */
-@import url("chat.css"); /* Added import for chat */
+@import url("titlebar.css");
+@import url("chat.css");
+@import url("tabs.css"); /* Added import for tabs */
 
 :root {
-    --color-primary: #0a84ff;         /* A slightly brighter blue for better contrast */
-    --color-secondary: #8e8e93;       /* For secondary text and UI elements */
-    --color-danger: #ff453a;          /* A brighter red for visibility */
+    /* ... (variables are unchanged) ... */
+    --color-primary: #0a84ff;         
+    --color-secondary: #8e8e93;       
+    --color-danger: #ff453a;          
 
-    --color-text: #f2f2f7;             /* Off-white for main text */
+    --color-text: #f2f2f7;             
     --color-text-on-primary: #ffffff;
     --color-text-on-dark: #ffffff;
 
@@ -24,10 +27,9 @@
     
     --color-border: #5E5E5D;
     
-    --color-hover: #3a3a3c;            /* For hovering over dark surface elements */
-    --color-active: #4a4a4c;           /* For active/selected state on dark surfaces */
+    --color-hover: #3a3a3c;            
+    --color-active: #4a4a4c;           
 
-    /* Font */
     --font-family-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 

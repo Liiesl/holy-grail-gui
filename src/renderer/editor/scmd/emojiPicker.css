@@ -1,0 +1,103 @@
+/* emojiPicker.css */
+
+#emoji-picker-menu {
+  position: absolute;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 101; /* Higher than slash command */
+  width: 340px; /* Wider for the grid layout */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#emoji-picker-menu.hidden {
+  display: none;
+}
+
+/* Category Tabs */
+.emoji-categories {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  padding: 4px;
+  background-color: var(--color-surface-alt);
+}
+
+.emoji-category-button {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 1.2em;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: center;
+  transition: background-color 0.2s;
+  color: var(--color-secondary);
+}
+
+.emoji-category-button:hover {
+  background-color: var(--color-hover);
+}
+
+.emoji-category-button.active {
+  background-color: var(--color-active);
+  color: var(--color-text);
+}
+
+/* Content Area */
+.emoji-content {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* Grid View (for categories and search) */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 4px;
+  padding: 8px;
+}
+
+.emoji-grid .emoji-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  background-color: transparent;
+  transition: background-color 0.1s;
+}
+
+.emoji-grid .emoji-item:hover {
+  background-color: var(--color-hover);
+}
+
+.emoji-grid .emoji-item.active {
+  background-color: var(--color-active);
+}
+
+.emoji-grid .emoji-item .emoji-char {
+  font-size: 1.8em;
+  line-height: 1;
+}
+
+/* General styles */
+.emoji-no-results {
+  padding: 12px;
+  text-align: center;
+  color: var(--color-secondary);
+}
+
+/* NEW: Style for the loading indicator */
+.emoji-loader {
+  padding: 40px 12px;
+  text-align: center;
+  color: var(--color-secondary);
+  font-style: italic;
+}

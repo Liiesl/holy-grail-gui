@@ -5,26 +5,36 @@ import { ProjectManager } from './project.js';
 import { Sidebar } from './sidebar/sidebar.js';
 import { Editor } from './editor/editor.js';
 import { Settings } from './settings.js';
-import { Titlebar } from './titlebar.js'; // Import the new Titlebar class
-import { Chat } from './chat.js'; // Import the new Chat class
+import { Titlebar } from './titlebar.js';
+import { Chat } from './chat.js';
+import { Tabs } from './tabs.js'; // Import the new Tabs class
 
 class App {
   constructor() {
+    this.editors = new Map(); // fileId -> { editor, container, project }
+    this.activeFileId = null;
+
     this.renderLayout();
     this.initServices();
     this.initComponents();
     this.connectComponents();
     this.start();
-    this.handleEscKey = this.handleEscKey.bind(this); // Bind context for event listener
+    this.handleEscKey = this.handleEscKey.bind(this);
   }
 
   renderLayout() {
-    // We add a new container for the chat panel.
     document.getElementById('app').innerHTML = `
       <div id="app-titlebar"></div> 
       <div id="app-view">
         <div id="app-sidebar" class="sidebar"></div>
-        <div id="app-main" class="main-content"></div>
+        <div id="app-main" class="main-content">
+          <div id="app-tabs"></div>
+          <div id="app-editors-wrapper">
+             <div id="welcome-message" class="editor-instance">
+                <p>Select a page to begin, or create a new one.</p>
+             </div>
+          </div>
+        </div>
         <div id="app-chat" class="chat-panel"></div>
       </div>
       <div id="settings-modal" class="settings-overlay"></div>
@@ -39,49 +49,55 @@ class App {
   initComponents() {
     const titlebarContainer = document.getElementById('app-titlebar');
     const sidebarContainer = document.getElementById('app-sidebar');
-    const mainContainer = document.getElementById('app-main');
-    const settingsContainer = document.getElementById('settings-modal'); // Updated ID
+    const settingsContainer = document.getElementById('settings-modal');
     const chatContainer = document.getElementById('app-chat');
+    const tabsContainer = document.getElementById('app-tabs');
+    
+    this.editorsWrapper = document.getElementById('app-editors-wrapper');
+    this.welcomeMessageEl = document.getElementById('welcome-message');
 
-    this.titlebar = new Titlebar(titlebarContainer); // Initialize the titlebar
+    this.titlebar = new Titlebar(titlebarContainer);
     this.sidebar = new Sidebar(this.projectManager, sidebarContainer);
-    this.editor = new Editor(this.projectManager, this.hgmd, mainContainer);
+    this.tabs = new Tabs(tabsContainer);
     this.settings = new Settings(settingsContainer);
-    this.chat = new Chat(chatContainer); // Initialize chat component
+    this.chat = new Chat(chatContainer);
+  }
+
+  // Helper to get the currently active editor instance
+  getActiveEditor() {
+    return this.activeFileId ? this.editors.get(this.activeFileId)?.editor : null;
   }
 
   connectComponents() {
     // --- Titlebar to App connections ---
     this.titlebar.container.addEventListener('sidebarToggle', () => {
       const isCollapsed = document.getElementById('app-view').classList.toggle('sidebar-collapsed');
-      // Also toggle a class on the titlebar for styling synchronization
       document.getElementById('app-titlebar').classList.toggle('sidebar-collapsed', isCollapsed);
       this.updateSession();
     });
 
     this.titlebar.container.addEventListener('modeChange', (e) => {
       const mode = e.detail.mode;
+      const editor = this.getActiveEditor();
+      if (!editor) return;
+
       if (mode === 'project') {
         this.sidebar.showProjectView();
       } else if (mode === 'pageHistory') {
         this.sidebar.showHistoryView();
       }
-      // 'projectHistory' is disabled for now.
     });
 
-    // NEW: Handle project selection from titlebar
     this.titlebar.container.addEventListener('projectChange', (e) => {
         this.handleProjectSelection(e.detail.path);
     });
     
-    // Listen for project actions from the titlebar menus
     this.titlebar.container.addEventListener('projectAction', async (e) => {
         const { action, path } = e.detail;
 
         if (action === 'add_new_project') {
             const projectsBefore = this.sidebar.projects.length;
             const updatedProjects = await this.projectManager.addProject();
-            // If a project was actually added, refresh the list
             if (updatedProjects && updatedProjects.length > projectsBefore) {
                 await this.refreshProjects();
             }
@@ -96,146 +112,91 @@ class App {
         }
     });
 
+    // --- Tabs to App/Editor connections ---
+    this.tabs.on('activeTabChanged', ({ activeTabId }) => {
+      this.setActiveEditor(activeTabId);
+    });
 
-    // --- Editor to App connection ---
-    this.editor.on('chatToggled', () => {
+    this.tabs.on('tabCloseRequested', ({ fileId }) => {
+      this.closeTab(fileId);
+    });
+
+    this.tabs.on('chatToggled', () => {
       document.getElementById('app-view').classList.toggle('chat-visible');
       this.updateSession();
     });
-
-    // --- Sidebar to App/Other Components connections ---
-
-    this.sidebar.on('projectSelected', (project) => {
-      const success = this.editor.showWelcomeMessage();
-      if (success && project) {
-        this.editor.editorEl.innerHTML = 'Select a page or create a new one.';
-      } else if (!success) {
-        // User cancelled, revert dropdown. This is hard, so we'll just leave it for now.
-      }
+    
+    this.tabs.on('historyClicked', () => {
+        const editor = this.getActiveEditor();
+        if (editor) {
+            this.sidebar.showHistoryView();
+            this.titlebar.setActiveMode('pageHistory');
+        }
     });
 
-    this.sidebar.on('fileSelected', async ({ project, file }) => {
-      const success = await this.editor.loadNoteContent(project.path, file);
-      if (success) {
-        this.editor.setCurrentFile(project, file);
-        this.sidebar.setCurrentFile(project, file);
-        this.updateSession();
-      } else {
-        // If user cancelled, revert the selection in the sidebar
-        this.sidebar.setCurrentFile(project, this.editor.currentFile);
-      }
+    this.tabs.on('deleteClicked', async () => {
+        const editorInstance = this.editors.get(this.activeFileId);
+        if (editorInstance) {
+            const { project, editor } = editorInstance;
+            const fileId = editor.currentFile;
+            const name = this.sidebar.getFileName(project.path, fileId);
+
+            const confirmed = confirm(`Are you sure you want to delete "${name || fileId}"? This action cannot be undone.`);
+            if (confirmed) {
+                await this.projectManager.deleteNote(project.path, fileId);
+                // The closeTab will handle UI cleanup, and it gets called by the sidebar's delete handler
+            }
+        }
     });
     
-    // New connection to manage history button availability
+
+    // --- Sidebar to App/Other Components connections ---
+    this.sidebar.on('fileSelected', async ({ project, file }) => {
+      await this.openOrFocusFile(project, file);
+    });
+
     this.sidebar.on('currentFileChanged', ({ hasFile }) => {
         this.titlebar.setHistoryModeAvailable(hasFile);
-        // If file is deselected and we are in history view, switch back
         if (!hasFile) {
             this.sidebar.showProjectView();
             this.titlebar.setActiveMode('project');
         }
     });
 
-    this.sidebar.on('newNoteClicked', (project) => {
-      // This is now just a signal to get the editor ready for a new note.
-      // The ProjectView is already showing an input field.
-      const success = this.editor.clearAndFocus();
-      if (success) {
-        this.editor.setCurrentFile(project, null);
-        this.sidebar.setCurrentFile(project, null);
-        this.updateSession();
-      }
-    });
-    this.sidebar.on('createNote', async ({ project, name, parentId }) => { // Destructure parentId
-      const result = await this.projectManager.createNote(project.path, name, parentId); // Pass it along
+    this.sidebar.on('createNote', async ({ project, name, parentId }) => {
+      const result = await this.projectManager.createNote(project.path, name, parentId);
       if (result.success) {
         await this.sidebar.refreshFileTree();
-        // Automatically select and load the newly created note
-        const newNoteId = result.note.id;
-        const loadSuccess = await this.editor.loadNoteContent(project.path, newNoteId);
-        if (loadSuccess) {
-            this.editor.setCurrentFile(project, newNoteId);
-            this.sidebar.setCurrentFile(project, newNoteId);
-        }
+        await this.openOrFocusFile(project, result.note.id);
       } else {
         alert(`Error creating page: ${result.error || 'Unknown error'}`);
       }
     });
-
+    
     this.sidebar.on('renameNote', async ({ project, id, newName }) => {
         const result = await this.projectManager.renameNote(project.path, id, newName);
         if (result.success) {
             await this.sidebar.refreshFileTree();
+            // Update tab title if it's open
+            if(this.editors.has(id)) {
+                this.tabs.updateTabTitle(id, newName);
+            }
         } else {
             alert(`Error renaming page: ${result.error || 'Unknown error'}`);
-            await this.sidebar.refreshFileTree(); // Refresh to revert UI change on failure
-        }
-    });
-    
-    this.sidebar.on('deleteNoteRequested', async ({ project, file, name }) => {
-        const confirmed = confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`);
-        if (confirmed) {
-            const result = await this.projectManager.deleteNote(project.path, file); // 'file' is the ID
-            if (result.success) {
-                // If the deleted note was the one currently open, clear the editor.
-                if (this.editor.currentFile === file && this.editor.currentProject.path === project.path) {
-                    this.editor.showWelcomeMessage();
-                    this.editor.setCurrentFile(project, null);
-                    this.sidebar.setCurrentFile(project, null);
-                    this.updateSession();
-                }
-                // Refresh the file list to remove the deleted note.
-                this.sidebar.refreshFileTree();
-            } else {
-                alert(`Error deleting note: ${result.error || 'Unknown error'}`);
-            }
+            await this.sidebar.refreshFileTree();
         }
     });
 
-    this.sidebar.on('backToNotes', async () => {
-        // This event is fired when switching from history back to files view.
-        if (this.editor.isReadOnly) {
-            await this.editor.loadNoteContent(this.sidebar.currentProject.path, this.sidebar.currentFile);
-            this.editor.setReadOnly(false);
+    this.sidebar.on('deleteNoteRequested', async ({ project, file }) => {
+      const confirmed = confirm(`Are you sure you want to delete this file? This action cannot be undone.`);
+      if (confirmed) {
+        const result = await this.projectManager.deleteNote(project.path, file);
+        if (result.success) {
+          this.closeTab(file, true); // Force close without confirmation
+          this.sidebar.refreshFileTree();
+        } else {
+          alert(`Error deleting note: ${result.error || 'Unknown error'}`);
         }
-    });
-    
-    this.sidebar.on('versionSelected', async ({ project, version }) => {
-        const content = await this.projectManager.getNoteVersionContent(project.path, version.hash);
-        this.editor.displayHistoricalContent(content, version);
-        this.editor.setReadOnly(true);
-    });
-
-    // --- Editor to Sidebar/Titlebar connections ---
-
-    this.editor.on('dirtyStateChanged', ({ isDirty }) => {
-      this.sidebar.setEditorDirty(isDirty);
-    });
-
-    this.editor.on('noteSaved', ({ isNew, isRestore }) => {
-      if (isNew || isRestore) {
-        // saveNote doesn't create new notes anymore, but this might be useful for other flows.
-        this.sidebar.refreshFileTree();
-      }
-      // After save, update sidebar's file state
-      this.sidebar.setCurrentFile(this.editor.currentProject, this.editor.currentFile);
-      
-      if (isRestore) {
-        // If it was a restore, exit history mode
-        this.sidebar.showProjectView();
-        this.titlebar.setActiveMode('project');
-      }
-    });
-    
-    this.editor.on('noteDeleted', () => {
-        this.sidebar.setCurrentFile(this.sidebar.currentProject, null);
-        this.sidebar.refreshFileTree();
-    });
-
-    this.editor.on('historyClicked', () => {
-      if (this.editor.currentProject && this.editor.currentFile) {
-        this.sidebar.showHistoryView();
-        this.titlebar.setActiveMode('pageHistory'); // NEW: Update titlebar state
       }
     });
 
@@ -244,9 +205,95 @@ class App {
     this.settings.on('closeSettings', () => this.showMainView());
   }
 
-  // NEW: Centralized project selection logic
+  async openOrFocusFile(project, fileId) {
+    // If the editor for this file doesn't exist yet, create it.
+    if (!this.editors.has(fileId)) {
+        // --- Create a new editor instance ---
+        const editorContainer = document.createElement('div');
+        editorContainer.className = 'editor-instance';
+        this.editorsWrapper.appendChild(editorContainer);
+        
+        const newEditor = new Editor(this.projectManager, this.hgmd, editorContainer);
+        this.editors.set(fileId, { editor: newEditor, container: editorContainer, project: project });
+
+        // --- Connect events for the new editor ---
+        newEditor.on('dirtyStateChanged', ({ isDirty }) => {
+            this.tabs.setTabDirty(fileId, isDirty);
+        });
+        
+        newEditor.on('noteSaved', () => {
+            // After saving, the sidebar might need to know about the current file state.
+            this.sidebar.setCurrentFile(project, fileId);
+        });
+
+        // --- Load content and update UI ---
+        const loadSuccess = await newEditor.loadNoteContent(project.path, fileId);
+        if (loadSuccess) {
+            newEditor.setCurrentFile(project, fileId);
+        } else {
+            // Cleanup if loading failed (e.g., file deleted externally)
+            this.editors.delete(fileId);
+            editorContainer.remove();
+            return; // Abort opening
+        }
+    }
+
+    // Now that the editor is guaranteed to exist, open/focus the tab.
+    // This will trigger the 'activeTabChanged' event, which in turn calls setActiveEditor.
+    const fileName = this.sidebar.getFileName(project.path, fileId);
+    this.tabs.openTab({ fileId: fileId, title: fileName || 'Untitled', project: project });
+  }
+  
+  // This method now ONLY handles editor visibility, not tab state.
+  setActiveEditor(fileId) {
+    if (this.activeFileId === fileId) return;
+
+    this.activeFileId = fileId;
+
+    // Hide all editor containers
+    this.editors.forEach((instance) => {
+        instance.container.style.display = 'none';
+    });
+    
+    this.welcomeMessageEl.style.display = 'none';
+
+    if (fileId && this.editors.has(fileId)) {
+      // Show the selected editor's container
+      const activeInstance = this.editors.get(fileId);
+      activeInstance.container.style.display = 'block';
+      this.sidebar.setCurrentFile(activeInstance.project, fileId);
+    } else {
+      // If no fileId or instance, show welcome message
+      this.welcomeMessageEl.style.display = 'block';
+      this.sidebar.setCurrentFile(null, null);
+    }
+
+    this.titlebar.setHistoryModeAvailable(!!fileId);
+    this.updateSession();
+  }
+  
+  closeTab(fileId, force = false) {
+    const instance = this.editors.get(fileId);
+    if (!instance) return;
+
+    if (!force) {
+        if (!instance.editor.confirmDiscardChanges()) {
+            return; // User cancelled
+        }
+    }
+
+    // Cleanup editor instance
+    instance.container.remove();
+    this.editors.delete(fileId);
+
+    // Tell Tabs component to close the tab. It will handle activating the next one
+    // and emitting 'activeTabChanged', which our listener will catch to update the editor view.
+    this.tabs.closeTab(fileId);
+  }
+  
   async handleProjectSelection(projectPath) {
-    if (projectPath === "") { // Should not happen with new UI, but good to have
+    // Logic remains mostly the same
+    if (projectPath === "") {
       this.sidebar.displayProject(null);
       this.titlebar.setCurrentProjectName(null);
       this.titlebar.updateProjectList(this.sidebar.projects, null);
@@ -256,47 +303,38 @@ class App {
         this.sidebar.displayProject(project);
         this.titlebar.setCurrentProjectName(project.name);
         this.titlebar.updateProjectList(this.sidebar.projects, project.path);
-        this.updateSession(); // Update session on project change
+        this.updateSession();
       }
     }
   }
-  
-  // Helper function to refresh project list and UI state
+
   async refreshProjects() {
     const currentProjectPath = this.sidebar.currentProject?.path;
-
-    // Reload projects from main process
-    await this.sidebar.loadProjects(); // This updates this.sidebar.projects internally
-
-    const currentProjectStillExists = currentProjectPath && 
-        this.sidebar.projects.some(p => p.path === currentProjectPath);
+    await this.sidebar.loadProjects();
+    const currentProjectStillExists = currentProjectPath && this.sidebar.projects.some(p => p.path === currentProjectPath);
 
     if (currentProjectStillExists) {
-        // Project list changed, but our current project is safe. Just update the UI.
         this.titlebar.updateProjectList(this.sidebar.projects, currentProjectPath);
     } else {
-        // The current project was removed (untracked or deleted). Reset the view.
         this.sidebar.displayProject(null);
-        this.editor.showWelcomeMessage();
         this.titlebar.setCurrentProjectName(null);
         this.titlebar.updateProjectList(this.sidebar.projects, null);
+        // FUTURE: Close all tabs belonging to the deleted/untracked project
     }
   }
 
-  // NEW: Sends current renderer state to the main process
   updateSession() {
     const sessionData = {
         lastProjectPath: this.sidebar.currentProject?.path || null,
-        lastOpenFileId: this.editor.currentFile || null,
+        // FUTURE: could save all open tabs here. For now, just the active one.
+        lastOpenFileId: this.activeFileId || null,
         sidebarCollapsed: document.getElementById('app-view').classList.contains('sidebar-collapsed'),
         chatVisible: document.getElementById('app-view').classList.contains('chat-visible'),
     };
     window.api.updateSessionData(sessionData);
   }
 
-  // NEW: Restores the application state based on saved session data
   async restoreSession(session) {
-    // Restore UI toggles
     if (session.sidebarCollapsed) {
       document.getElementById('app-view').classList.add('sidebar-collapsed');
       document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
@@ -305,32 +343,19 @@ class App {
       document.getElementById('app-view').classList.add('chat-visible');
     }
 
-    // Restore last open project
     if (session.lastProjectPath) {
-      // Check if project still exists
       const projectExists = this.sidebar.projects.some(p => p.path === session.lastProjectPath);
       if (projectExists) {
-        // This internally calls displayProject, which loads the file tree
         await this.handleProjectSelection(session.lastProjectPath);
-
-        // Restore last open file
         if (session.lastOpenFileId) {
             const project = this.sidebar.currentProject;
-            const fileId = session.lastOpenFileId;
-            
-            // Try to load the file. If it was deleted, this will fail gracefully.
-            const success = await this.editor.loadNoteContent(project.path, fileId);
-            if (success) {
-                this.editor.setCurrentFile(project, fileId);
-                this.sidebar.setCurrentFile(project, fileId);
-                // No need to call updateSession here as it's part of the startup flow
-            }
+            // openOrFocusFile handles creating the editor and tab
+            await this.openOrFocusFile(project, session.lastOpenFileId);
         }
       }
     }
   }
 
-  // NEW method to handle escape key for modal
   handleEscKey(e) {
     if (e.key === 'Escape') {
       this.showMainView();
@@ -344,7 +369,7 @@ class App {
   }
 
   async showSettingsView() {
-    await this.settings.loadCurrentSettings(); // Load data before showing
+    await this.settings.loadCurrentSettings();
     document.getElementById('app').classList.add('modal-open');
     document.getElementById('settings-modal').classList.add('visible');
     window.addEventListener('keydown', this.handleEscKey);
@@ -354,14 +379,12 @@ class App {
     const appContainer = document.getElementById('app');
     const loader = document.getElementById('loader');
 
-    // Load session data first
     const settings = await window.api.getSettings();
     const session = settings.session;
     
     await this.sidebar.loadProjects();
     this.titlebar.updateProjectList(this.sidebar.projects, null);
 
-    // If a session exists, restore the application state
     if (session) {
       await this.restoreSession(session);
     }
