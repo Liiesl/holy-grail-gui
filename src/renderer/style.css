@@ -37,6 +37,9 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    /* NEW: Add scrollbar styles for Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-secondary) var(--color-background); /* thumb-color track-color */
 }
 
 body {
@@ -47,6 +50,27 @@ body {
     /* --- NEW: Add padding to the top of the body to make space for the fixed title bar --- */
     padding-top: 40px;
 }
+
+/* NEW: Global Scrollbar Styles for WebKit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-background); /* Make the track invisible */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--color-surface);
+    border-radius: 10px;
+    border: 2px solid var(--color-background); /* Creates a padding effect around the thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-secondary);
+}
+
 
 #app-view {
     display: flex;

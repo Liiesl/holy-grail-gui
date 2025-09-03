@@ -1,51 +1,79 @@
-/* editor.css */
+/* TARGETED FIX - Add these rules to your editor.css */
 
 .main-content {
-    flex-grow: 1;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    /* NEW: Add overflow hidden so editor scrollbars are contained */
+    min-height: 0;
     overflow: hidden;
 }
 
-/* 
-  The old .toolbar styles are DELETED from this file.
-*/
-
-/* NEW: Style for the wrapper holding all editor instances */
+/* Style for the wrapper holding all editor instances */
 #app-editors-wrapper {
-    flex-grow: 1;
-    position: relative; /* Children will be positioned relative to this */
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
 }
 
-/* NEW: Style for an individual editor instance's container */
-.editor-instance-container {
-    height: 100%;
-    width: 100%;
-    display: flex; /* Allow #editor to grow */
-    flex-direction: column;
+/* Style for individual editor instance containers */
+.editor-instance-container,
+.editor-instance {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
 }
 
-/* NEW: Styles for the welcome message */
+/* Ensure welcome message works too */
 #welcome-message {
-    display: flex;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    color: var(--color-secondary);
+    color: var(--color-secondary, #8e8e93);
     font-size: 1.2em;
 }
-
+/* CRITICAL: Fix the editor itself */
 #editor {
-    flex-grow: 1;
+    flex: 1 !important;
+    min-height: 0 !important;
+    height: auto !important; /* Override any fixed height */
+    max-height: none !important; /* Remove any max-height constraints */
     padding: 20px;
     font-size: 16px;
     line-height: 1.6;
     outline: none;
-    overflow-y: auto;
-    background-color: var(--color-background);
-    /* NEW: ensure it takes up the available space in its flex container */
-    height: 100%;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    background-color: var(--color-background, #191919);
+    scrollbar-width: thin;
+}
+
+/* Custom scrollbar for webkit browsers */
+#editor::-webkit-scrollbar {
+    width: 8px;
+}
+
+#editor::-webkit-scrollbar-track {
+    background: var(--color-surface);
+}
+
+#editor::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+}
+
+#editor::-webkit-scrollbar-thumb:hover {
+    background: var(--color-secondary);
 }
 
 #editor.readonly {
@@ -133,6 +161,37 @@
     border: none;
     border-top: 1px solid var(--color-border);
     margin: 2em 0;
+}
+
+/* Tables */
+#editor table {
+    border-collapse: collapse;
+    margin: 1em 0;
+    border: 1px solid var(--color-border);
+}
+
+#editor th, #editor td {
+    border: 1px solid var(--color-border);
+    padding: 8px 12px;
+    text-align: left;
+}
+
+#editor th {
+    background-color: var(--color-surface-alt);
+    font-weight: 600;
+}
+
+/* Highlight table's right border for resizing */
+#editor table.table-resizing-hover {
+    border-right-color: var(--color-primary);
+    border-right-width: 2px;
+}
+
+/* Highlight column's right border for resizing */
+#editor th.cell-resizing-hover,
+#editor td.cell-resizing-hover {
+    border-right-color: var(--color-primary);
+    border-right-width: 2px;
 }
 
 /* Alert Widgets */
