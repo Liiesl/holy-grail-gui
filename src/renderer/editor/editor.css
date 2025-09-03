@@ -254,3 +254,45 @@
 #floating-toolbar button i {
     font-family: serif;
 }
+
+/* Style for the inserter line-buttons */
+#table-col-inserter,
+#table-row-inserter {
+    position: absolute;
+    background-color: var(--color-primary);
+    z-index: 50;
+    
+    /* Button reset and styling */
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    
+    /* Center the '+' icon */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-on-primary);
+    font-size: 16px;
+    font-weight: bold;
+
+    /* Visuals */
+    opacity: 0.5; /* Slightly transparent until hovered */
+    transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+#table-col-inserter {
+    margin-left: -5px;
+    width: 10px; /* A bit thicker for easier clicking */
+}
+
+#table-row-inserter {
+    margin-top: -5px;
+    height: 10px;
+}
+
+#table-col-inserter:hover,
+#table-row-inserter:hover {
+    opacity: 1;
+    background-color: hsl(from var(--color-primary) h s l / 1.1); /* Brighter on hover */
+}

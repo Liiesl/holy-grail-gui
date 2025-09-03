@@ -1,4 +1,4 @@
-// src/renderer/slashCommand.js
+// src/renderer/scmd/slashCommand.js
 
 export class SlashCommand {
   constructor(editor) {
@@ -63,7 +63,65 @@ export class SlashCommand {
       },
       { name: 'Seek', command: 'seek', description: 'Find and link to another note', disabled: true },
       { name: 'Open in right pane', command: 'open-right', description: 'Open a note side-by-side', disabled: true },
-      { name: 'Table', command: 'table', description: 'Insert a table', disabled: true },
+      {
+        name: 'Table',
+        command: 'table',
+        description: 'Insert a table',
+        disabled: false, // <-- Command is now enabled
+        action: (editor) => {
+          // A default table is inserted that demonstrates width and alignment features.
+          // Appending a <p><br></p> is a UX improvement to allow the user
+          // to easily type below the table after it's inserted.
+          const tableHtml = `
+            <table style="width: 80%;">
+              <thead>
+                <tr>
+                  <th style="width: 40%;">Header</th>
+                  <th style="text-align: center;">Header</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Cell</td>
+                  <td style="text-align: center;">Cell</td>
+                </tr>
+                <tr>
+                  <td>Cell</td>
+                  <td style="text-align: center;">Cell</td>
+                </tr>
+              </tbody>
+            </table>
+            <p><br></p>
+          `;
+          
+          document.execCommand('insertHTML', false, tableHtml.trim().replace(/\s{2,}/g, ' '));
+          
+          // Now, try to place the cursor in the first header cell for immediate editing.
+          const sel = window.getSelection();
+          if (!sel.rangeCount) return;
+
+          const range = sel.getRangeAt(0);
+
+          // After insertion, the cursor is in the new <p>. findParentBlock gets it.
+          const currentBlock = editor.slashCommand.findParentBlock(range.startContainer);
+          
+          // The table should be the previous sibling element.
+          if (currentBlock && currentBlock.previousElementSibling && currentBlock.previousElementSibling.tagName === 'TABLE') {
+            const table = currentBlock.previousElementSibling;
+            const firstCell = table.querySelector('th');
+            
+            if (firstCell) {
+              // Create a new range, place it inside the first cell, and collapse
+              // it to the start so the user sees a blinking cursor.
+              const newRange = document.createRange();
+              newRange.selectNodeContents(firstCell);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          }
+        }
+      },
       { name: 'Switch page', command: 'switch', description: 'Quickly jump to another page', disabled: true },
     ];
     

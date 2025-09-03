@@ -2,6 +2,7 @@
 
 import { SlashCommand } from './scmd/slashCommand.js';
 import { EmojiPicker } from './scmd/emojiPicker.js';
+import { TableManager } from './table.js';
 
 export class Editor {
   constructor(projectManager, hgmd, container) {
@@ -22,7 +23,9 @@ export class Editor {
     this.initElements();
     this.slashCommand = new SlashCommand(this);
     this.emojiPicker = new EmojiPicker(this);
+    this.tableManager = new TableManager(this);
     this.addEventListeners();
+    this.tableManager.init();
     // No longer shows welcome message here, App.js manages that
   }
 
