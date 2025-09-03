@@ -23,34 +23,42 @@ export class SlashCommand {
         command: 'emoji', 
         description: 'Insert an emoji', 
         action: (editor, triggerInfo) => {
-          // The trigger text (e.g., "/emoji") is deleted by the execute() method before this action is called.
-          // The range is collapsed where the text used to be.
-          const { range } = triggerInfo;
+          // --- FIX: ---
+          // The `triggerInfo.range` passed from `execute` can be stale after the DOM
+          // mutation (`deleteContents`). We must get the fresh, current cursor position
+          // from the global selection object to ensure we're working with the latest state.
+          const sel = window.getSelection();
+          if (!sel.rangeCount || !sel.isCollapsed) return; // Safety check
+          
+          const range = sel.getRangeAt(0); // Get the LIVE, current range
           
           const colonNode = document.createTextNode(':');
           range.insertNode(colonNode);
           
-          // Move cursor after the colon and prepare for the emoji picker
-          const sel = window.getSelection();
+          // Move cursor after the colon
           range.setStartAfter(colonNode);
           range.collapse(true);
           sel.removeAllRanges();
           sel.addRange(range);
 
-          // Manually trigger the emoji picker
-          const rect = range.getBoundingClientRect();
-          const editorRect = editor.container.getBoundingClientRect();
-          const position = {
-              top: rect.bottom - editorRect.top,
-              left: rect.left - editorRect.left,
-          };
-          
-          // The new range for the emoji picker is just the ":"
-          const emojiTriggerRange = document.createRange();
-          emojiTriggerRange.selectNode(colonNode);
+          // Use setTimeout to allow the browser to render the ":" before we measure it.
+          setTimeout(() => {
+            // To get the most reliable position, create a temporary range that
+            // explicitly selects the node we want to measure (`colonNode`).
+            const colonRange = document.createRange();
+            colonRange.selectNode(colonNode);
+            const rect = colonRange.getBoundingClientRect();
 
-          const emojiTriggerInfo = { range: emojiTriggerRange, filter: '' };
-          editor.emojiPicker.show(position, emojiTriggerInfo);
+            const editorRect = editor.container.getBoundingClientRect();
+            const position = {
+                top: rect.bottom - editorRect.top,
+                left: rect.left - editorRect.left,
+            };
+            
+            // Pass the range that covers the ':' so the picker knows what to replace.
+            const emojiTriggerInfo = { range: colonRange, filter: '' };
+            editor.emojiPicker.show(position, emojiTriggerInfo);
+          }, 0);
         }
       },
       { name: 'Seek', command: 'seek', description: 'Find and link to another note', disabled: true },
@@ -224,36 +232,53 @@ export class SlashCommand {
     }
     if (command.disabled) return;
 
-    const { range } = this.triggerInfo;
+    // Make a local copy of triggerInfo. The subsequent `deleteContents` will
+    // trigger an input event that calls `hide()`, which in turn nullifies `this.triggerInfo`.
+    // We must preserve the trigger info to pass it to the command's action.
+    const triggerInfo = this.triggerInfo;
+    const { range } = triggerInfo;
     
     // 1. Find the block-level element (e.g., the <p>) that contains the trigger text.
     const targetBlock = this.findParentBlock(range.startContainer);
 
     // 2. Remove the trigger text (e.g., "/h1") from the editor.
+    // This triggers the input event handler, which will hide the menu and nullify this.triggerInfo.
     range.deleteContents();
 
-    // 3. For block-formatting commands, we explicitly select the target block's content.
-    // This gives `document.execCommand` a clear instruction on what to format,
-    // which is crucial for empty lines where it might otherwise affect an adjacent block.
     const blockFormattingCommands = ['h1', 'h2', 'h3', 'ul', 'ol', 'blockquote', 'pre'];
     if (targetBlock && blockFormattingCommands.includes(command.command)) {
-      const selection = window.getSelection();
-      const newRange = document.createRange();
-      newRange.selectNodeContents(targetBlock);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
+      const isEffectivelyEmpty = targetBlock.textContent.trim() === '' && (targetBlock.innerHTML === '' || targetBlock.innerHTML === '<br>');
+
+      if (isEffectivelyEmpty) {
+        // --- START: NEW UNDO-FRIENDLY FIX ---
+        // Instead of a zero-width space, we now use a <br> tag, which is the
+        // browser's standard way of representing an empty line. This makes
+        // the undo operation much more stable.
+        targetBlock.innerHTML = '<br>';
+        
+        // Then, we place the cursor at the very beginning of the block.
+        // `execCommand` will see the cursor in this block and format it correctly.
+        const selection = window.getSelection();
+        const newRange = document.createRange();
+        newRange.setStart(targetBlock, 0); // Position before the first child (the <br>)
+        newRange.collapse(true); // Make it a blinking caret
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+        // --- END: NEW UNDO-FRIENDLY FIX ---
+      }
     }
     
-    // 4. Hide the command menu BEFORE executing the action.
+    // 3. Hide the command menu BEFORE executing the action.
+    // The input event handler probably already did this, but it's safe to call again.
     this.hide();
 
-    // 5. Execute the command's specific action.
+    // 4. Execute the command's specific action, using our preserved copy.
     if (command.action) {
-      // The selection is now correctly set up for the action to apply.
-      command.action(this.editor, this.triggerInfo);
+      command.action(this.editor, triggerInfo);
     }
     
-    // 6. Ensure the editor is focused. The browser will place the cursor correctly after `execCommand`.
+    // 5. Ensure the editor is focused. The browser will place the cursor correctly
+    // after execCommand, and we don't need to manually collapse the selection anymore.
     this.editor.editorEl.focus();
   }
 }

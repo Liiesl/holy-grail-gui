@@ -15,9 +15,9 @@ export class EmojiPicker {
     this.activeCategory = this.categories[0];
     this.activeIndex = 0; // Index for keyboard navigation in search grid
     this.triggerInfo = null;
-    this.isLoading = true; // NEW: Loading state flag
+    this.isLoading = true; // Loading state flag
 
-    // CHANGED: Render UI shell immediately and load data in the background.
+    // Render UI shell immediately and load data in the background.
     this.render();
     this.addEventListeners();
     this.loadEmojis();
@@ -45,7 +45,7 @@ export class EmojiPicker {
       this.emojis = [{ "emoji": "😀", "name": "grinning face", "category": "Smileys & Emotion", "keywords": ["error"] }];
       this.emojisByCategory[this.categories[0]] = this.emojis;
     } finally {
-      // NEW: Update state and refresh UI if it's visible
+      // Update state and refresh UI if it's visible
       this.isLoading = false;
       if (this.isVisible()) {
         this.update(this.triggerInfo?.filter || '');
@@ -57,7 +57,7 @@ export class EmojiPicker {
     this.container = document.createElement('div');
     this.container.id = 'emoji-picker-menu';
     this.container.classList.add('hidden');
-    // CHANGED: Render with a loading indicator initially.
+    // Render with a loading indicator initially.
     this.container.innerHTML = `
       <div class="emoji-categories"></div>
       <div class="emoji-content">
@@ -143,7 +143,7 @@ export class EmojiPicker {
   update(filterText) {
     const contentEl = this.container.querySelector('.emoji-content');
     
-    // NEW: Handle loading state
+    // Handle loading state
     if (this.isLoading) {
       contentEl.innerHTML = `<div class="emoji-loader">Loading emojis...</div>`;
       this.renderCategories(); // Ensure categories are always visible
@@ -181,7 +181,7 @@ export class EmojiPicker {
   renderGrid(container, emojis, highlightActive = false) {
     container.innerHTML = `
       <div class="emoji-grid">
-        ${emojis.map((index, emoji) => `
+        ${emojis.map((emoji, index) => `
           <button 
             class="emoji-item ${highlightActive && index === this.activeIndex ? 'active' : ''}" 
             data-emoji-char="${emoji.emoji}"
