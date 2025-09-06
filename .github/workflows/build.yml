@@ -22,17 +22,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js
+      # Step 2: NEW - Verify that the package.json version matches the Git tag
+      - name: Verify package.json version matches tag
+        run: |
+          $packageVersion = (Get-Content ./package.json | ConvertFrom-Json).version
+          echo "Version in package.json: $packageVersion"
+
+          $gitTag = "${{ github.ref_name }}"
+          echo "Git tag: $gitTag"
+          
+          $expectedTag = "v$packageVersion"
+
+          if ($gitTag -ne $expectedTag) {
+            echo "Error: Git tag '$gitTag' does not match package.json version '$expectedTag'."
+            exit 1
+          } else {
+            echo "Version check passed. Proceeding with the build."
+          }
+        shell: pwsh
+
+      # Step 3: Set up Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Step 3: Install npm dependencies
+      # Step 4: Install npm dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Build and publish the application
+      # Step 5: Build and publish the application
       # We add '--publish always' to instruct electron-builder to create a GitHub Release.
       # The GITHUB_TOKEN is required for electron-builder to have permission to create the release on your behalf.
       - name: Build and release application
