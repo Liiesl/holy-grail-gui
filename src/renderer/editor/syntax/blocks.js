@@ -20,30 +20,55 @@ const blockRules = [
     },
   },
   {
+    name: 'horizontal-rule',
+    type: 'block',
+    mdRegex: /^(?:---|\*\*\*|___)\s*$/,
+    mdToHtml: '<hr>',
+    htmlRegex: /<hr\s*\/?>/gi,
+    htmlToMd: '---\n',
+  },
+  {
     name: 'fenced-code-block',
     type: 'block',
     multiLine: true,
-    mdRegex: /^```(\w*)/,
+    mdRegex: /^\s*```(\w*)/,
     mdToHtml: function(startIndex, lines) {
-      const startMatch = lines[startIndex].match(/^```(\w*)/);
-      const lang = startMatch[1];
-      let content = '';
+      // FIX: Capture the indentation of the opening fence to dedent the content correctly.
+      const startMatch = lines[startIndex].match(/^(\s*)```(\w*)/);
+      const indentLength = startMatch[1].length;
+      const lang = startMatch[2];
+      
+      const contentLines = [];
       let i = startIndex + 1;
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        content += lines[i] + '\n';
+
+      // Collect and dedent content lines until the closing fence is found.
+      while (i < lines.length && !lines[i].match(/^\s*```\s*$/)) {
+        const line = lines[i];
+        // Remove a number of leading characters equal to the opening fence's indentation.
+        // String.prototype.slice() is safe for any length.
+        const dedentedLine = line.slice(indentLength);
+        contentLines.push(dedentedLine);
         i++;
       }
+
+      // Join the processed lines back into a single string.
+      const content = contentLines.join('\n');
+      
       const escapeHtml = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       const langClass = lang ? ` class="language-${lang}"` : '';
       const linesConsumed = (i - startIndex) + (i < lines.length ? 1 : 0);
+
+      // FIX: The previous .trim() call removed indentation from the first line only, causing
+      // the misalignment. The new dedenting logic handles this for all lines, so trim() is removed.
       return {
-        html: `<pre><code${langClass}>${escapeHtml(content.trim())}</code></pre>`,
+        htmlParts: [`<pre><code${langClass}>`, escapeHtml(content), `</code></pre>`],
         linesConsumed,
       };
     },
     htmlRegex: /<pre><code(?: class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/gi,
     htmlToMd: (match, lang, content) => {
-      const unescapeHtml = (text) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+      const unescapeHtml = (text) => text.replace(/&lt;(\w+)&gt;/g, '$1')
+                                         .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
       return '```' + (lang || '') + '\n' + unescapeHtml(content) + '\n```\n';
     }
   },
@@ -60,9 +85,14 @@ const blockRules = [
         i++;
       }
       const content = contentLines.join('\n');
-      const processedContent = engine.markdownToHtml(content); // Recursively parse content
+      // Use the internal helper to get an array of parts for the blockquote's content
+      const innerHtmlParts = engine._markdownToHtmlParts(content); 
+      
+      // Wrap the inner parts with blockquote tags, creating an array of parts for the whole blockquote
+      const blockquoteHtmlParts = ['<blockquote>', ...innerHtmlParts, '</blockquote>'];
+      
       return {
-        html: `<blockquote>${processedContent}</blockquote>`,
+        htmlParts: blockquoteHtmlParts, // Return an array of parts
         linesConsumed: i - startIndex,
       };
     },
@@ -70,22 +100,24 @@ const blockRules = [
     htmlToMd: (match, content) => {
       const markdownContent = content.replace(/<p>(.*?)<\/p>/g, '$1\n').replace(/<br\s*\/?>/g, '\n').trim();
       const lines = markdownContent.split('\n');
-      return lines.map(line => `> ${line}`).join('\n') + '\n';
+      return lines.filter(line => line.trim() !== '').map(line => `> ${line}`).join('\n');
     },
   },
   {
     name: 'unordered-list',
     type: 'block',
     multiLine: true,
-    mdRegex: /^\s*[-*+]/, // More lenient trigger to catch lines with just "-"
+    // FIX: Make the trigger regex stricter to avoid an infinite loop.
+    // It now requires the list marker to be followed by a space or end-of-line,
+    // preventing it from incorrectly matching lines like '***' or '*word*'.
+    mdRegex: /^\s*[-*+](?=\s|$)/,
     mdToHtml: function(startIndex, lines, engine) {
-      let html = '<ul>';
+      const listItemsHtml = []; // Array to hold <li> strings
       let i = startIndex;
-      // This regex handles: "- item", "- [x] item", and "-" (empty)
       const itemRegex = /^\s*[-*+](?:\s+(?:\[([ xX])\]\s+)?(.*)|\s*)$/;
       while (i < lines.length) {
         const match = lines[i].match(itemRegex);
-        if (!match) break; // End of list
+        if (!match) break;
 
         const [, check, content] = match;
         let itemHtml = '';
@@ -94,11 +126,11 @@ const blockRules = [
           itemHtml += `<input type="checkbox" disabled${isChecked ? ' checked' : ''}> `;
         }
         itemHtml += engine._processInlineMd(content || '');
-        html += `<li>${itemHtml}</li>`;
+        listItemsHtml.push(`<li>${itemHtml}</li>`);
         i++;
       }
-      html += '</ul>';
-      return { html, linesConsumed: i - startIndex };
+      // Return parts for the ul, to avoid joining all <li>s into one massive string before the main engine joins them
+      return { htmlParts: [`<ul>`, ...listItemsHtml, `</ul>`], linesConsumed: i - startIndex };
     },
     htmlRegex: /<ul>([\s\S]*?)<\/ul>/gi,
     htmlToMd: (match, content) => {
@@ -118,7 +150,6 @@ const blockRules = [
           if (cleanedContent) {
             markdown += `- ${cleanedContent}\n`;
           } else {
-            // For an empty li, output two spaces to survive the engine's final trim.
             markdown += '-  \n';
           }
         }
@@ -132,16 +163,16 @@ const blockRules = [
     multiLine: true,
     mdRegex: /^\s*\d+\.\s+/,
     mdToHtml: function(startIndex, lines, engine) {
-      let html = '<ol>';
+      const listItemsHtml = []; // Array to hold <li> strings
       let i = startIndex;
       const itemRegex = /^\s*\d+\.\s+(.*)/;
       while (i < lines.length && itemRegex.test(lines[i])) {
         const [, content] = lines[i].match(itemRegex);
-        html += `<li>${engine._processInlineMd(content)}</li>`;
+        listItemsHtml.push(`<li>${engine._processInlineMd(content)}</li>`);
         i++;
       }
-      html += '</ol>';
-      return { html, linesConsumed: i - startIndex };
+      // Return parts for the ol
+      return { htmlParts: [`<ol>`, ...listItemsHtml, `</ol>`], linesConsumed: i - startIndex };
     },
     htmlRegex: /<ol>([\s\S]*?)<\/ol>/gi,
     htmlToMd: (match, content) => {
@@ -155,21 +186,12 @@ const blockRules = [
         if (cleanedContent) {
           markdown += `${counter}. ${cleanedContent}\n`;
         } else {
-          // Use two spaces for empty items to survive the final trim.
           markdown += `${counter}.  \n`;
         }
         counter++;
       }
       return markdown;
     },
-  },
-  {
-    name: 'horizontal-rule',
-    type: 'block',
-    mdRegex: /^(?:---|\*\*\*|___)\s*$/,
-    mdToHtml: '<hr>',
-    htmlRegex: /<hr\s*\/?>/gi,
-    htmlToMd: '---\n',
   },
 ];
 

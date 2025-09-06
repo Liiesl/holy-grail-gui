@@ -16,35 +16,27 @@ const widgetRules = [
     name: 'table',
     type: 'block',
     multiLine: true,
-    // A loose regex to identify a potential table start.
-    // The mdToHtml function does the real validation by checking the next line.
     mdRegex: /^\|.*\|/,
     mdToHtml: (startIndex, lines, engine) => {
       const headerLine = lines[startIndex].trim();
       const separatorLine = lines[startIndex + 1] ? lines[startIndex + 1].trim() : '';
 
-      // The second line must be a valid separator line for it to be a table.
       const isSeparatorLine = /^\|(?:\s*:?-[^|]*:?\s*\|)+/.test(separatorLine);
       if (!separatorLine || !isSeparatorLine) {
-        // This is not a table. The engine matched this rule, so we must process
-        // the line to avoid an infinite loop. We'll render it as a paragraph.
         const pContent = engine._processInlineMd(headerLine);
-        return { html: `<p>${pContent}</p>`, linesConsumed: 1 };
+        return { htmlParts: [`<p>${pContent}</p>`], linesConsumed: 1 }; // Return as parts array
       }
 
-      // --- It's a valid table, proceed with parsing ---
-      let linesConsumed = 2; // Header + Separator
+      let linesConsumed = 2;
 
-      // 1. Parse table-wide width from the end of the separator line (e.g., "|...| 100vw")
       let tableStyle = '';
       const tableOptionsMatch = separatorLine.match(/\|\s*([^\s|]+)\s*$/);
       if (tableOptionsMatch) {
         tableStyle = `style="width: ${tableOptionsMatch[1]};"`;
       }
 
-      // 2. Parse column styles from the separator cells
       const separatorCells = separatorLine
-        .replace(/\|\s*[^|\s]+\s*$/, '|') // Remove table-wide option before splitting
+        .replace(/\|\s*[^|\s]+\s*$/, '|')
         .trim().slice(1, -1).split('|');
 
       const columnStyles = separatorCells.map(cell => {
@@ -63,60 +55,53 @@ const widgetRules = [
         return style;
       });
 
-      // 3. Build the <thead> from the header line
       const headerCells = headerLine.slice(1, -1).split('|');
-      let theadHtml = '<thead><tr>';
-      headerCells.forEach((cell, i) => {
+      const thsHtml = headerCells.map((cell, i) => {
         const style = columnStyles[i] ? `style="${columnStyles[i]}"` : '';
         const content = engine._processInlineMd(cell.trim());
-        theadHtml += `<th ${style}>${content}</th>`;
+        return `<th ${style}>${content}</th>`;
       });
-      theadHtml += '</tr></thead>';
+      const theadHtmlParts = [`<thead><tr>`, ...thsHtml, `</tr></thead>`];
 
-      // 4. Build the <tbody> from the subsequent lines
-      let tbodyHtml = '<tbody>';
+      const tbodyRowsHtml = [];
       let currentRowIndex = startIndex + 2;
       while (currentRowIndex < lines.length && lines[currentRowIndex].trim().startsWith('|')) {
         const rowLine = lines[currentRowIndex].trim();
         const bodyCells = rowLine.slice(1, -1).split('|');
-        tbodyHtml += '<tr>';
-        bodyCells.forEach((cell, i) => {
+        const tdsHtml = bodyCells.map((cell, i) => {
           let tdStyle = '';
           if (columnStyles[i]) {
             const alignMatch = columnStyles[i].match(/text-align:\s*[^;]+/);
             if (alignMatch) tdStyle = `style="${alignMatch[0]}"`;
           }
           const content = engine._processInlineMd(cell.trim());
-          tbodyHtml += `<td ${tdStyle}>${content}</td>`;
+          return `<td ${tdStyle}>${content}</td>`;
         });
-        tbodyHtml += '</tr>';
+        tbodyRowsHtml.push(`<tr>`, ...tdsHtml, `</tr>`);
         currentRowIndex++;
         linesConsumed++;
       }
-      tbodyHtml += '</tbody>';
+      const tbodyHtmlParts = [`<tbody>`, ...tbodyRowsHtml, `</tbody>`];
 
-      // 5. Assemble the final table
-      const tableHtml = `<table ${tableStyle}>${theadHtml}${tbodyHtml}</table>`;
-      return { html: tableHtml, linesConsumed };
+      // Assemble the final table as an array of parts
+      const tableHtmlParts = [`<table ${tableStyle}>`, ...theadHtmlParts, ...tbodyHtmlParts, `</table>`];
+      return { htmlParts: tableHtmlParts, linesConsumed }; // Return parts array
     },
-    // --- FIX: Added \s* to tolerate whitespace between elements from innerHTML ---
     htmlRegex: /<table([^>]*)>\s*<thead>(.*?)<\/thead>\s*<tbody>(.*?)<\/tbody>\s*<\/table>/gis,
     htmlToMd: (match, tableAttrs, headContent, bodyContent) => {
       let md = '';
 
-      // 1. Parse global table width from the <table> tag's style attribute
       let globalWidth = '';
       const styleMatch = tableAttrs.match(/style=".*?width:\s*([^;"]+)/);
       if (styleMatch) {
         globalWidth = ` ${styleMatch[1]}`;
       }
 
-      // 2. Parse <thead> to build markdown header and separator lines
       const mdHeaderParts = [];
       const mdSeparatorParts = [];
 
       const headRowMatch = headContent.match(/<tr[^>]*>(.*?)<\/tr>/is);
-      if (!headRowMatch) return ''; // Should not happen with our own generated HTML
+      if (!headRowMatch) return '';
       const headerCells = headRowMatch[1].match(/<th[^>]*>.*?<\/th>/gis);
       if (!headerCells) return '';
 
@@ -144,7 +129,6 @@ const widgetRules = [
       md += `|${mdHeaderParts.join('|')}|\n`;
       md += `| ${mdSeparatorParts.join(' | ')} |${globalWidth}\n`;
 
-      // 3. Parse <tbody> to build markdown body rows
       const bodyRows = bodyContent.match(/<tr[^>]*>.*?<\/tr>/gis);
       if (bodyRows) {
         bodyRows.forEach(trHtml => {

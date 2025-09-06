@@ -67,7 +67,7 @@ These features dramatically improve the semantic correctness, accessibility, and
 *   **Priority Rationale:** **HIGH**. Crucial for accessibility and creating semantically correct key-value tables (e.g., a "specifications" table). This is a relatively simple parsing change in `widgets.js` that provides significant semantic value.
 
 **5. Table Caption**
-*   **Concept:** Add a proper `<caption`> element to the table for titles and descriptions.
+*   **Concept:** Add a proper `<caption>` element to the table for titles and descriptions.
 *   **Syntax:** Place the caption text in square brackets `[...]` on the separator line.
 *   **Example:**
     ```markdown
