@@ -153,6 +153,11 @@
     font-size: 1em;
 }
 
+.settings-form-group input[type="password"],
+.settings-form-group input[type="checkbox"] {
+    vertical-align: middle;
+}
+
 .settings-form-group input[type="password"] {
     width: 100%;
     max-width: 500px;
@@ -194,6 +199,7 @@
 
 .settings-save-btn:disabled {
     background-color: var(--color-border);
+    color: var(--color-secondary);
     cursor: not-allowed;
 }
 
@@ -201,4 +207,23 @@
     margin-left: 15px;
     font-size: 0.9em;
     color: var(--color-primary);
+}
+
+/* --- NEW: Update styles --- */
+#update-progress-container {
+    width: 100%;
+    max-width: 500px;
+    height: 8px;
+    background-color: var(--color-surface);
+    border-radius: 4px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+#update-progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: var(--color-primary);
+    border-radius: 4px;
+    transition: width 0.2s ease-in-out;
 }

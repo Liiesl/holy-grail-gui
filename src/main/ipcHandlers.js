@@ -1,5 +1,5 @@
 // src/main/ipcHandlers.js
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron'); // Added app
 const projectManager = require('./projectManager');
 const { readSettings, saveSettings } = require('./settings'); // Import settings functions
 const { generateChatResponse } = require('./gemini'); // Import Gemini function
@@ -84,6 +84,11 @@ function registerIpcHandlers(sessionRef) {
   // --- NEW: Session Handler ---
   ipcMain.on('update-session-data', (event, data) => {
     sessionRef.current = data;
+  });
+
+  // --- NEW: App Info ---
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
   });
 }
 

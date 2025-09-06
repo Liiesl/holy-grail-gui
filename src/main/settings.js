@@ -13,7 +13,8 @@ async function readSettings() {
   const defaults = {
     projects: [],
     geminiApiKey: '',
-    session: null
+    session: null,
+    autoCheckForUpdates: false, // Default setting for auto-updates
   };
   try {
     await fs.access(settingsPath);

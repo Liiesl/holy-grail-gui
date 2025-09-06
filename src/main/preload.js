@@ -42,4 +42,10 @@ contextBridge.exposeInMainWorld('api', {
   
   // --- Gemini Chat ---
   chatWithGemini: (prompt) => ipcRenderer.invoke('chat-with-gemini', prompt),
+
+  // --- NEW: App Info & Updates ---
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: () => ipcRenderer.send('check-for-updates'),
+  installUpdate: () => ipcRenderer.send('install-update'),
+  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, status) => callback(status)),
 });

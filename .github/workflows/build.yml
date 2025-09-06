@@ -1,17 +1,17 @@
 # .github/workflows/build.yml
 
-name: Build Windows Executable
+name: Build and Release Windows Application
 
-# Controls when the action will run. 
-# This workflow runs on pushes to the main branch and can also be triggered manually.
+# This workflow now triggers when you push a version tag (e.g., v1.0.1, v1.2.0).
+# This is the standard practice for creating releases.
 on:
   push:
-    branches: [ "stable" ]
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 jobs:
-  build:
-    # The type of runner that the job will run on. We use windows-latest for a Windows build.
+  build-and-release:
     runs-on: windows-latest
 
     steps:
@@ -19,26 +19,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js. electron-builder requires a specific Node version sometimes.
-      # Using a recent LTS version like 20 is a safe bet.
+      # Step 2: Set up Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Step 3: Install npm dependencies.
-      # 'npm ci' is recommended for CI environments as it's faster and more reliable.
+      # Step 3: Install npm dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Run the build script defined in package.json
-      - name: Build application
-        run: npm run build
+      # Step 4: Build and publish the application
+      # We add '--publish always' to instruct electron-builder to create a GitHub Release.
+      # The GITHUB_TOKEN is required for electron-builder to have permission to create the release on your behalf.
+      - name: Build and release application
+        run: npm run build -- --publish always
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Step 5: Upload the build artifact (the .exe installer)
-      # This makes the file available for download from the GitHub Actions run page.
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: hggui-windows-installer
-          path: dist/*.exe
+      # The 'Upload artifact' step is no longer needed, as electron-builder now uploads
+      # the assets directly to the GitHub Release it creates. The release assets are
+      # what electron-updater will use, not the workflow artifacts.
