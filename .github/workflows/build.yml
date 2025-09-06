@@ -13,7 +13,10 @@ on:
 jobs:
   build-and-release:
     runs-on: windows-latest
-
+    # Grant the GITHUB_TOKEN permissions to create a release and upload assets.
+    permissions:
+      contents: write
+      
     steps:
       # Step 1: Check out your repository's code
       - name: Checkout repository
