@@ -10,6 +10,7 @@
 @import url("chat.css");
 @import url("tabs.css"); /* Added import for tabs */
 @import url("search-modal.css"); /* NEW: Added import for search modal */
+@import url("context-menu.css"); /* NEW: Added import for context menu styles */
 
 :root {
     /* ... (variables are unchanged) ... */

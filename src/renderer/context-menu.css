@@ -1,0 +1,61 @@
+/* src/renderer/context-menu.css */
+
+/* Main container for the context menu */
+.context-menu {
+  /* Positioning and Appearance */
+  position: absolute; /* Positioned relative to the viewport by JS */
+  z-index: 1000;
+  min-width: 180px;
+  background-color: var(--color-surface); /* Use theme surface color */
+  border: 1px solid var(--color-border);
+  border-radius: 6px; /* Slightly rounded corners */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); /* Softer, deeper shadow */
+  padding: 6px; /* Padding around the list of items */
+  
+  /* Initial state: Hidden and ready for transition */
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.98);
+  transform-origin: top left; /* Animate from the point of click */
+  transition: opacity 0.1s ease-out, transform 0.1s ease-out, visibility 0.1s;
+}
+
+/* State when the menu is active */
+.context-menu.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+/* Individual clickable item in the menu */
+.context-menu-item {
+  display: flex; /* Use flex for better alignment if icons were added later */
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+  border-radius: 4px; /* Rounded corners for each item */
+  cursor: pointer;
+  user-select: none; /* Prevent text selection */
+  white-space: nowrap; /* Keep text on a single line */
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+/* Hover effect for items */
+.context-menu-item:not(.disabled):hover {
+  background-color: var(--color-hover); /* Use primary color for hover */
+  color: var(--color-text-on-primary); /* Ensure text is readable on hover */
+}
+
+/* Style for disabled (non-clickable) items */
+.context-menu-item.disabled {
+  color: var(--color-secondary); /* Dim the text for disabled items */
+  cursor: not-allowed;
+}
+
+/* Separator line between groups of items */
+.context-menu-separator {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 6px 0; /* Space above and below the separator */
+}

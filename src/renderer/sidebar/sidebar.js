@@ -2,13 +2,12 @@
 import { ProjectView } from './projectView.js';
 import { HistoryView } from './versionControl.js'; 
 
-/**
- * Main controller for the entire sidebar, managing views and state.
- */
 export class Sidebar {
-  constructor(projectManager, container) {
+  // 1. Accept the service in the constructor
+  constructor(projectManager, container, contextMenuService) {
     this.projectManager = projectManager;
     this.container = container;
+    this.contextMenuService = contextMenuService; // Store the service
     this.currentProject = null;
     this.currentFile = null;
     this.projects = [];
@@ -52,13 +51,37 @@ export class Sidebar {
         this.emit('fileSelected', data)
     });
     this.projectView.on('newNoteClicked', (data) => this.emit('newNoteClicked', data));
-    this.projectView.on('deleteNoteRequested', (data) => this.emit('deleteNoteRequested', data));
+    // The 'deleteNoteRequested' event will now be triggered by the context menu
     this.projectView.on('createNote', (data) => this.emit('createNote', data));
     this.projectView.on('renameNote', (data) => this.emit('renameNote', data));
     this.projectView.on('searchInitiated', (data) => this.emit('searchInitiated', data));
     this.historyView.on('versionSelected', (data) => this.emit('versionSelected', data));
+
+    // 2. Add the context menu event listener
+    this.container.addEventListener('contextmenu', (e) => {
+      const fileEl = e.target.closest('.file-tree-item[data-id]');
+      if (fileEl) {
+        e.preventDefault();
+        const project = this.currentProject;
+        const fileId = fileEl.dataset.id;
+        const fileName = this.getFileName(fileId);
+
+        const menuItems = [
+          {
+            label: 'Rename Page',
+            callback: () => this.projectView.promptRename(project, fileId, fileName)
+          },
+          {
+            label: 'Delete Page',
+            callback: () => this.emit('deleteNoteRequested', { project, file: fileId })
+          }
+        ];
+        
+        this.contextMenuService.show(e.clientX, e.clientY, menuItems);
+      }
+    });
   }
-  
+
   on(event, callback) {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(callback);

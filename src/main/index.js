@@ -163,8 +163,6 @@ async function createWindow() {
       if (settings.autoCheckForUpdates !== false) {
           setTimeout(() => {
               isAutoUpdateCheck = true;
-              // --- CHANGE #1: ADD THIS LINE FOR THE AUTOMATIC CHECK ---
-              autoUpdater.forceDevUpdateConfig = true;
               autoUpdater.checkForUpdates();
           }, 5000);
       } else if (settings.availableUpdateInfo) {
@@ -200,8 +198,6 @@ app.whenReady().then(async () => {
   // --- Update-related IPC Handlers ---
   ipcMain.on('check-for-updates', () => {
     isAutoUpdateCheck = false; // This is a manual check
-    // --- CHANGE #2: ADD THIS LINE FOR THE MANUAL CHECK ---
-    autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.checkForUpdates();
   });
 

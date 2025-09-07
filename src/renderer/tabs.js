@@ -1,9 +1,11 @@
 // src/renderer/tabs.js
 
 export class Tabs {
-  constructor(container) {
+  // 1. Accept the service in the constructor
+  constructor(container, contextMenuService) {
     this.container = container;
-    this.tabs = new Map(); // Using a Map to store tab data { project, fileId, title }
+    this.contextMenuService = contextMenuService; // Store the service
+    this.tabs = new Map();
     this.activeTabId = null;
     this.listeners = {};
     this.render();
@@ -50,9 +52,36 @@ export class Tabs {
         if (e.target.classList.contains('close-tab')) {
             this.emit('tabCloseRequested', { fileId: tabId });
         } else {
-            // Instead of emitting 'tabSelected', Tabs now manages its own active state.
             this.setActiveTab(tabId);
         }
+    });
+
+    // 2. Add the context menu event listener
+    this.tabsList.addEventListener('contextmenu', (e) => {
+      const tabEl = e.target.closest('.tab-item');
+      if (tabEl) {
+        e.preventDefault();
+        const tabId = tabEl.dataset.tabId;
+        const menuItems = [
+          {
+            label: 'Close Tab',
+            callback: () => this.emit('tabCloseRequested', { fileId: tabId })
+          },
+          {
+            label: 'Close Other Tabs',
+            disabled: this.tabs.size <= 1,
+            callback: () => {
+              this.tabs.forEach((_, fileId) => {
+                if (fileId !== tabId) {
+                  this.emit('tabCloseRequested', { fileId });
+                }
+              });
+            }
+          }
+        ];
+
+        this.contextMenuService.show(e.clientX, e.clientY, menuItems);
+      }
     });
     
     // Wire up action buttons

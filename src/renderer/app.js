@@ -8,9 +8,8 @@ import { Settings } from './settings.js';
 import { Titlebar } from './titlebar.js';
 import { Chat } from './chat.js';
 import { Tabs } from './tabs.js';
-import { SearchModal } from './search-modal.js'; // Import the new SearchModal class
-
-// The SearchModal class has been removed from this file.
+import { SearchModal } from './search-modal.js';
+import { ContextMenuService } from './context-menu.js'; // 1. Import the new service
 
 class App {
   constructor() {
@@ -42,12 +41,16 @@ class App {
       </div>
       <div id="settings-modal" class="settings-overlay"></div>
       <div id="search-modal" class="search-overlay"></div>
+      <div id="context-menu-container"></div> <!-- 2. Add a container for the menu -->
     `;
   }
 
   initServices() {
     this.hgmd = new Hgmd();
     this.projectManager = new ProjectManager();
+    // 3. Instantiate the service
+    const contextMenuContainer = document.getElementById('context-menu-container');
+    this.contextMenuService = new ContextMenuService(contextMenuContainer);
   }
 
   initComponents() {
@@ -62,8 +65,9 @@ class App {
     this.welcomeMessageEl = document.getElementById('welcome-message');
 
     this.titlebar = new Titlebar(titlebarContainer);
-    this.sidebar = new Sidebar(this.projectManager, sidebarContainer);
-    this.tabs = new Tabs(tabsContainer);
+    // 4. Pass the service to components that need it
+    this.sidebar = new Sidebar(this.projectManager, sidebarContainer, this.contextMenuService);
+    this.tabs = new Tabs(tabsContainer, this.contextMenuService);
     this.settings = new Settings(settingsContainer);
     this.chat = new Chat(chatContainer);
     this.searchModal = new SearchModal(this.projectManager, searchContainer);
