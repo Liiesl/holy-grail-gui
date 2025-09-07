@@ -1,17 +1,5 @@
 /* style.css - Dark Mode */
 
-/* Import component-specific styles */
-@import url("./sidebar/sidebar.css");
-@import url("./editor/editor.css");
-@import url("./editor/scmd/slashCommand.css");
-@import url("./editor/scmd/emojiPicker.css"); /* FIXED: Added import for emoji picker styles */
-@import url("settings.css");
-@import url("titlebar.css");
-@import url("chat.css");
-@import url("tabs.css"); /* Added import for tabs */
-@import url("search-modal.css"); /* NEW: Added import for search modal */
-@import url("context-menu.css"); /* NEW: Added import for context menu styles */
-
 :root {
     /* ... (variables are unchanged) ... */
     --color-primary: #0a84ff;         
