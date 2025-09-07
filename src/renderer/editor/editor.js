@@ -85,9 +85,29 @@ export class Editor {
         return;
       }
 
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault();
-        this.saveCurrentNote();
+      if (e.ctrlKey) {
+        switch (e.key.toLowerCase()) {
+          case 'b':
+            e.preventDefault();
+            this.applyFormat('bold');
+            break;
+          case 'i':
+            e.preventDefault();
+            this.applyFormat('italic');
+            break;
+          case 'u':
+            e.preventDefault();
+            this.applyFormat('underline');
+            break;
+          case 's':
+            e.preventDefault();
+            if (e.shiftKey) {
+              this.applyFormat('strikeThrough');
+            } else {
+              this.saveCurrentNote();
+            }
+            break;
+        }
       }
     });
 
