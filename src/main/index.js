@@ -10,10 +10,12 @@ const projectManager = require('./projectManager'); // Import projectManager
 let mainWindow;
 let sessionRef = { current: {} }; // Use a reference object to hold renderer state
 let isAutoUpdateCheck = false; // Flag to differentiate auto vs manual update checks
+let availableUpdate = null; // To hold update info if download is not automatic
 
 // --- AutoUpdater Configuration & Logging ---
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.autoDownload = false; // <--- ADD THIS LINE
 
 // --- AutoUpdater Event Handlers ---
 function sendStatusToWindow(status) {
@@ -27,20 +29,42 @@ autoUpdater.on('checking-for-update', () => {
     sendStatusToWindow({ event: 'checking' });
 });
 
-autoUpdater.on('update-available', (info) => {
-    sendStatusToWindow({ event: 'available', info });
-    if (isAutoUpdateCheck) {
-        dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Update Found',
-            message: `A new version (${info.version}) is available. It will be downloaded in the background.`,
-            buttons: ['OK']
-        });
+autoUpdater.on('update-available', async (info) => {
+    const totalSize = info.files.reduce((acc, file) => acc + (file.size || 0), 0);
+    const infoWithSize = { ...info, size: totalSize };
+
+    availableUpdate = infoWithSize; // Store the update info with size
+    sendStatusToWindow({ event: 'available', info: infoWithSize });
+
+    const settings = await readSettings();
+    // Persist update info in case user closes app before downloading
+    settings.availableUpdateInfo = infoWithSize;
+    await saveSettings(settings);
+    
+    if (settings.autoDownloadUpdates) {
+        autoUpdater.downloadUpdate();
+    } else {
+        // Send a specific status to renderer to show the download button
+        sendStatusToWindow({ event: 'available-not-downloaded', info: infoWithSize });
+        if (isAutoUpdateCheck) {
+            dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'Update Available',
+                message: `A new version (${info.version}) is available. You can download it from the Settings > About page.`,
+                buttons: ['OK']
+            });
+        }
     }
 });
 
-autoUpdater.on('update-not-available', () => {
+autoUpdater.on('update-not-available', async () => {
     sendStatusToWindow({ event: 'not-available' });
+    // Clear any previously stored update info if the update is no longer available
+    const settings = await readSettings();
+    if (settings.availableUpdateInfo) {
+        settings.availableUpdateInfo = null;
+        await saveSettings(settings);
+    }
 });
 
 autoUpdater.on('error', (err) => {
@@ -51,8 +75,17 @@ autoUpdater.on('download-progress', (progressObj) => {
     sendStatusToWindow({ event: 'progress', progress: progressObj });
 });
 
-autoUpdater.on('update-downloaded', (info) => {
-    sendStatusToWindow({ event: 'downloaded', info });
+autoUpdater.on('update-downloaded', async (info) => {
+    const totalSize = info.files.reduce((acc, file) => acc + (file.size || 0), 0);
+    const infoWithSize = { ...info, size: totalSize };
+    sendStatusToWindow({ event: 'downloaded', info: infoWithSize });
+    
+    // Clear the persisted update info now that it's downloaded
+    const settings = await readSettings();
+    settings.availableUpdateInfo = null;
+    await saveSettings(settings);
+    availableUpdate = null;
+
     dialog.showMessageBox(mainWindow, {
         type: 'info',
         title: 'Update Ready',
@@ -117,6 +150,33 @@ async function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+  // After window is created and ready, handle updates
+  mainWindow.webContents.on('did-finish-load', () => {
+      // If an update was found previously but not downloaded, notify renderer immediately
+      if (settings.availableUpdateInfo) {
+          availableUpdate = settings.availableUpdateInfo;
+          sendStatusToWindow({ event: 'available-not-downloaded', info: settings.availableUpdateInfo });
+      }
+
+      // Now, perform the startup check if enabled
+      if (settings.autoCheckForUpdates !== false) {
+          setTimeout(() => {
+              isAutoUpdateCheck = true;
+              // --- CHANGE #1: ADD THIS LINE FOR THE AUTOMATIC CHECK ---
+              autoUpdater.forceDevUpdateConfig = true;
+              autoUpdater.checkForUpdates();
+          }, 5000);
+      } else if (settings.availableUpdateInfo) {
+          // If auto-check is off, but we know an update is available, still show the dialog
+          dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Update Available',
+              message: `A new version (${settings.availableUpdateInfo.version}) is available. You can download it from the Settings > About page.`,
+              buttons: ['OK']
+          });
+      }
+  });
 }
 
 app.whenReady().then(async () => {
@@ -137,25 +197,38 @@ app.whenReady().then(async () => {
 
   createWindow();
 
-  // --- NEW: Update-related IPC Handlers ---
+  // --- Update-related IPC Handlers ---
   ipcMain.on('check-for-updates', () => {
     isAutoUpdateCheck = false; // This is a manual check
+    // --- CHANGE #2: ADD THIS LINE FOR THE MANUAL CHECK ---
+    autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.checkForUpdates();
+  });
+
+  ipcMain.on('download-update', () => {
+    const startDownload = () => {
+        if (availableUpdate) {
+            autoUpdater.downloadUpdate();
+        } else {
+            log.warn('Download requested but no update is available.');
+        }
+    };
+
+    if (availableUpdate) {
+        startDownload();
+    } else {
+        readSettings().then(settings => {
+            if (settings.availableUpdateInfo) {
+                availableUpdate = settings.availableUpdateInfo;
+                startDownload();
+            }
+        });
+    }
   });
 
   ipcMain.on('install-update', () => {
     autoUpdater.quitAndInstall();
   });
-  
-  // --- NEW: Auto-update check on startup ---
-  if (settings.autoCheckForUpdates !== false) { // Check for explicit false, default to true
-    // Wait a bit after the window is ready before checking
-    setTimeout(() => {
-        isAutoUpdateCheck = true;
-        autoUpdater.checkForUpdates();
-    }, 5000); 
-  }
-
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

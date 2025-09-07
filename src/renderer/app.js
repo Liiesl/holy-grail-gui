@@ -410,6 +410,13 @@ class App {
     window.addEventListener('keydown', this.handleEscKey);
   }
 
+  async showSettingsView() {
+    await this.settings.loadCurrentSettings();
+    document.getElementById('app').classList.add('modal-open');
+    document.getElementById('settings-modal').classList.add('visible');
+    window.addEventListener('keydown', this.handleEscKey);
+  }
+
   async start() {
     const appContainer = document.getElementById('app');
     const loader = document.getElementById('loader');

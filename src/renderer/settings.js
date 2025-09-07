@@ -1,5 +1,17 @@
 // src/renderer/settings.js
 
+function formatBytes(bytes, decimals = 2) {
+    if (!+bytes) return '0 Bytes';
+
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
 export class Settings {
   constructor(container) {
     this.container = container;
@@ -50,9 +62,13 @@ export class Settings {
               </div>
 
               <div class="settings-form-group">
-                <label style="display: inline-block; font-weight: normal; margin-bottom: 0;">
+                <label style="display: block; font-weight: normal; margin-bottom: 10px;">
                     <input type="checkbox" id="auto-check-updates" style="margin-right: 8px;">
                     Automatically check for updates on startup
+                </label>
+                <label style="display: block; font-weight: normal; margin-bottom: 0;">
+                    <input type="checkbox" id="auto-download-updates" style="margin-right: 8px;">
+                    Automatically download updates when found
                 </label>
               </div>
 
@@ -81,6 +97,7 @@ export class Settings {
                 </div>
                 <div id="update-controls" style="margin-top: 15px;">
                     <button id="check-for-updates-btn" class="settings-save-btn">Check for Updates</button>
+                    <button id="download-update-btn" class="settings-save-btn hidden">Download Update</button>
                     <button id="install-update-btn" class="settings-save-btn hidden">Restart & Install</button>
                 </div>
             </div>
@@ -93,6 +110,7 @@ export class Settings {
   initElements() {
     this.geminiApiKeyInput = this.container.querySelector('#gemini-api-key');
     this.autoCheckUpdatesCheckbox = this.container.querySelector('#auto-check-updates');
+    this.autoDownloadUpdatesCheckbox = this.container.querySelector('#auto-download-updates');
     this.saveBtn = this.container.querySelector('#save-settings-btn');
     this.saveStatusEl = this.container.querySelector('#save-status');
 
@@ -101,6 +119,7 @@ export class Settings {
     this.updateProgressContainer = this.container.querySelector('#update-progress-container');
     this.updateProgressBar = this.container.querySelector('#update-progress-bar');
     this.checkForUpdatesBtn = this.container.querySelector('#check-for-updates-btn');
+    this.downloadUpdateBtn = this.container.querySelector('#download-update-btn');
     this.installUpdateBtn = this.container.querySelector('#install-update-btn');
   }
 
@@ -128,9 +147,13 @@ export class Settings {
     // Handle saving settings
     this.saveBtn.addEventListener('click', () => this.saveSettings());
     
-    // --- NEW: Update Listeners ---
+    // --- Update Listeners ---
     this.checkForUpdatesBtn.addEventListener('click', () => {
         window.api.checkForUpdates();
+    });
+    this.downloadUpdateBtn.addEventListener('click', () => {
+        window.api.downloadUpdate();
+        this.downloadUpdateBtn.classList.add('hidden');
     });
     this.installUpdateBtn.addEventListener('click', () => {
         window.api.installUpdate();
@@ -142,13 +165,15 @@ export class Settings {
     const settings = await window.api.getSettings();
     this.geminiApiKeyInput.value = settings.geminiApiKey || '';
     this.autoCheckUpdatesCheckbox.checked = settings.autoCheckForUpdates !== false; // Default to true
+    this.autoDownloadUpdatesCheckbox.checked = settings.autoDownloadUpdates === true; // Default to false
   }
 
   async saveSettings() {
     this.saveBtn.disabled = true;
     const settingsToSave = {
       geminiApiKey: this.geminiApiKeyInput.value.trim(),
-      autoCheckForUpdates: this.autoCheckUpdatesCheckbox.checked
+      autoCheckForUpdates: this.autoCheckUpdatesCheckbox.checked,
+      autoDownloadUpdates: this.autoDownloadUpdatesCheckbox.checked
     };
     await window.api.saveSettings(settingsToSave);
     
@@ -168,33 +193,50 @@ export class Settings {
   }
 
   handleUpdateStatus(status) {
+    // Hide all buttons and progress bar initially, then show what's needed.
+    this.checkForUpdatesBtn.classList.remove('hidden');
+    this.checkForUpdatesBtn.style.display = 'inline-block';
+    this.downloadUpdateBtn.classList.add('hidden');
+    this.installUpdateBtn.classList.add('hidden');
+    this.updateProgressContainer.classList.add('hidden');
+    this.checkForUpdatesBtn.disabled = false;
+
+    const formattedSize = status.info && status.info.size ? `(${formatBytes(status.info.size)})` : '';
+
     switch (status.event) {
         case 'checking':
             this.updateStatusText.textContent = 'Checking for updates...';
             this.checkForUpdatesBtn.disabled = true;
             break;
-        case 'available':
-            this.updateStatusText.textContent = `A new version (${status.info.version}) is available. Downloading...`;
+        case 'available-not-downloaded':
+            this.updateStatusText.textContent = `A new version (${status.info.version}) is available. ${formattedSize}`;
+            this.downloadUpdateBtn.classList.remove('hidden');
+            this.checkForUpdatesBtn.style.display = 'none';
+            break;
+        case 'available': // This now means "downloading has started"
+            this.updateStatusText.textContent = `A new version (${status.info.version}) is available. Downloading... ${formattedSize}`;
             this.checkForUpdatesBtn.disabled = true;
+            this.checkForUpdatesBtn.style.display = 'none';
             break;
         case 'not-available':
             this.updateStatusText.textContent = 'You are on the latest version.';
-            this.checkForUpdatesBtn.disabled = false;
             break;
         case 'progress':
             this.updateProgressContainer.classList.remove('hidden');
             this.updateProgressBar.style.width = `${status.progress.percent.toFixed(2)}%`;
-            this.updateStatusText.textContent = `Downloading... (${status.progress.percent.toFixed(0)}%)`;
+            const transferred = formatBytes(status.progress.transferred);
+            const total = formatBytes(status.progress.total);
+            this.updateStatusText.textContent = `Downloading... ${transferred} / ${total} (${status.progress.percent.toFixed(0)}%)`;
+            this.checkForUpdatesBtn.style.display = 'none';
             break;
         case 'downloaded':
-            this.updateStatusText.textContent = `Update downloaded. Version ${status.info.version} is ready to be installed.`;
+            this.updateStatusText.textContent = `Update downloaded. Version ${status.info.version} ${formattedSize} is ready to be installed.`;
             this.installUpdateBtn.classList.remove('hidden');
             this.checkForUpdatesBtn.style.display = 'none';
             this.updateProgressContainer.classList.add('hidden');
             break;
         case 'error':
             this.updateStatusText.textContent = `Error during update: ${status.error}`;
-            this.checkForUpdatesBtn.disabled = false;
             break;
     }
   }

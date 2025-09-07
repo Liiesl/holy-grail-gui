@@ -15,6 +15,8 @@ async function readSettings() {
     geminiApiKey: '',
     session: null,
     autoCheckForUpdates: false, // Default setting for auto-updates
+    autoDownloadUpdates: false,
+    availableUpdateInfo: null,
   };
   try {
     await fs.access(settingsPath);
