@@ -4,6 +4,121 @@ const fs = require('fs').promises;
 const crypto = require('crypto');
 const { dialog, BrowserWindow } = require('electron');
 const { readSettings, saveSettings } = require('./settings');
+const searchManager = require('./searchManager'); // Import the new search manager
+
+// --- START: Indexing Logic ---
+// This section is responsible for reading data from the filesystem and
+// preparing it for the search index.
+
+/**
+ * Updates the index for a single note (page name and content).
+ * It generates index items and passes them to the searchManager.
+ */
+async function updateIndexForNote(projectPath, noteId, noteName, content) {
+    // First, remove old entries for this note from the index
+    searchManager.removeIndexForNote(projectPath, noteId);
+
+    const projectName = path.basename(projectPath);
+    const newItems = [];
+
+    // Create item for the page name
+    newItems.push({
+        type: 'page',
+        text: noteName,
+        metadata: { projectPath, projectName, noteId, noteName }
+    });
+
+    // Create items for content lines
+    content.split('\n').forEach((line, index) => {
+        if (line.trim()) {
+            newItems.push({
+                type: 'content_line',
+                text: line,
+                metadata: { projectPath, projectName, noteId, noteName, lineNumber: index + 1 }
+            });
+        }
+    });
+
+    // Add all new items to the index in one go
+    searchManager.addItemsToIndex(newItems);
+}
+
+/**
+ * Builds the search index for a single project.
+ * This version is highly optimized for bulk indexing. It reads all note files
+ * in parallel and returns an array of index items.
+ * @param {object} project - The project object { name, path }.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of index items for the project.
+ */
+async function buildIndexForProject(project) {
+    console.log(`[Search] Indexing project: ${project.name}`);
+    const projectItems = [];
+
+    // Index the project name itself
+    projectItems.push({
+        type: 'project',
+        text: project.name,
+        metadata: { projectPath: project.path, projectName: project.name }
+    });
+
+    try {
+        const pagesConfig = await readPagesConfig(project.path);
+        const activePages = Object.entries(pagesConfig).filter(([, data]) => data.status === 'active');
+        
+        const notesData = await Promise.all(activePages.map(async ([noteId, noteData]) => {
+            try {
+                const notePath = path.join(project.path, noteId);
+                const content = await fs.readFile(notePath, 'utf8');
+                return { noteId, noteData, content };
+            } catch (err) {
+                console.error(`[Search] Could not index note ${noteId} in ${project.name}: ${err.message}`);
+                return null;
+            }
+        }));
+
+        for (const note of notesData.filter(Boolean)) {
+            const { noteId, noteData, content } = note;
+            
+            projectItems.push({
+                type: 'page',
+                text: noteData.name,
+                metadata: { projectPath: project.path, projectName: project.name, noteId, noteName: noteData.name }
+            });
+            
+            content.split('\n').forEach((line, index) => {
+                if (line.trim()) {
+                    projectItems.push({
+                        type: 'content_line',
+                        text: line,
+                        metadata: { projectPath: project.path, projectName: project.name, noteId, noteName: noteData.name, lineNumber: index + 1 }
+                    });
+                }
+            });
+        }
+    } catch (err) {
+        console.error(`[Search] Failed to build index for ${project.name}: ${err.message}`);
+    }
+    
+    return projectItems;
+}
+
+/** Builds the search index for all tracked projects. */
+async function buildAllIndices() {
+    searchManager.clearIndex(); // Clear the index via the manager
+    console.log('[Search] Building all indices...');
+    const settings = await readSettings();
+
+    // Concurrently generate index items for all projects.
+    const allProjectsItems = await Promise.all(settings.projects.map(p => buildIndexForProject(p)));
+    
+    // Add the generated items to the search index.
+    searchManager.addItemsToIndex(allProjectsItems.flat());
+
+    console.log(`[Search] Indexing complete. ${searchManager._getSearchIndex_FOR_TESTING().length} items indexed.`);
+}
+
+// --- END: Indexing Logic ---
+
 
 // --- Helper Functions for .hggui management ---
 
@@ -18,7 +133,6 @@ async function readPagesConfig(projectPath) {
         const rawData = await fs.readFile(pagesPath, 'utf8');
         return JSON.parse(rawData);
     } catch (error) {
-        // If file doesn't exist or is corrupt, return an empty object.
         if (error.code !== 'ENOENT') {
             console.error(`Could not read pages.json for ${projectPath}:`, error.message);
         }
@@ -63,17 +177,10 @@ async function ensureHgGuiInitialized(projectPath) {
     const pagesPath = path.join(hgGuiPath, 'pages.json'); // New config file
 
     try {
-        // Create .hggui and .hggui/objects directories if they don't exist.
         await fs.mkdir(objectsPath, { recursive: true });
-        
-        // Create files with 'wx' flag: write if it doesn't exist, otherwise fail.
-        // We catch the 'EEXIST' error, effectively making this a "create if not exists" operation.
         await fs.writeFile(logPath, '{}', { flag: 'wx' });
         await fs.writeFile(pagesPath, '{}', { flag: 'wx' });
-
     } catch (error) {
-        // EEXIST is expected if the folder/file is already there, which is fine.
-        // For any other error, log it.
         if (error.code !== 'EEXIST') {
             console.error(`Failed to initialize or verify .hggui repository in ${projectPath}:`, error);
         }
@@ -94,16 +201,17 @@ async function addProject(event) {
   if (!canceled && filePaths.length > 0) {
     const projectPath = filePaths[0];
     const settings = await readSettings();
+    const projectName = path.basename(projectPath);
 
     if (!settings.projects.some(p => p.path === projectPath)) {
-      settings.projects.push({
-          name: path.basename(projectPath),
-          path: projectPath
-      });
+      const project = { name: projectName, path: projectPath };
+      settings.projects.push(project);
       await saveSettings(settings);
 
-      // Ensure the version control directory is initialized.
       await ensureHgGuiInitialized(projectPath);
+      // SEARCH: Generate index items for the new project and add them.
+      const projectIndexItems = await buildIndexForProject(project);
+      searchManager.addItemsToIndex(projectIndexItems);
     }
     return settings.projects;
   }
@@ -120,11 +228,10 @@ async function getNotes(projectPath) {
     const pagesConfig = await readPagesConfig(projectPath);
     let configNeedsUpdate = false;
 
-    // Reconcile: If a physical file exists but isn't in config, add it.
     for (const filename of hgmdFiles) {
         if (!pagesConfig[filename]) {
             pagesConfig[filename] = {
-                name: filename.replace('.hgmd', ''), // Use filename as default name
+                name: filename.replace('.hgmd', ''),
                 parentId: null,
                 icon: '📄',
                 currentHash: null,
@@ -133,7 +240,6 @@ async function getNotes(projectPath) {
             configNeedsUpdate = true;
         }
     }
-    // Reconcile: If a config entry has no physical file, mark it as deleted.
     for (const filename in pagesConfig) {
         if (!hgmdFiles.includes(filename) && pagesConfig[filename].status === 'active') {
             pagesConfig[filename].status = 'deleted';
@@ -145,13 +251,12 @@ async function getNotes(projectPath) {
         await savePagesConfig(projectPath, pagesConfig);
     }
 
-    // Generate the note structure for the UI based on pages.json
     const notes = Object.entries(pagesConfig)
         .filter(([, data]) => data.status === 'active')
         .map(([id, data]) => ({
-            id: id, // The filename is the ID
+            id: id,
             name: data.name,
-            path: path.join(projectPath, id), // Full path using ID
+            path: path.join(projectPath, id),
             parentId: data.parentId,
             icon: data.icon,
         }));
@@ -166,14 +271,16 @@ async function getNoteContent({ projectPath, filename }) {
 }
 
 async function saveNote({ projectPath, filename, content }) {
-    // filename is now the unique ID, e.g., 'abc123xyz.hgmd'
     const filePath = path.join(projectPath, filename);
     if (!(await isPathInProjects(filePath))) throw new Error("Access denied.");
     
-    // ROBUSTNESS: This is the primary write operation, so ensure structure exists first.
     await ensureHgGuiInitialized(projectPath);
-
     await fs.writeFile(filePath, content);
+    
+    // SEARCH: Update index after saving
+    const pagesConfig = await readPagesConfig(projectPath);
+    const noteName = pagesConfig[filename]?.name || filename.replace('.hgmd', '');
+    updateIndexForNote(projectPath, filename, noteName, content).catch(console.error);
 
     try {
         const hash = crypto.createHash('sha1').update(content).digest('hex');
@@ -201,9 +308,7 @@ async function saveNote({ projectPath, filename, content }) {
             await fs.writeFile(logPath, JSON.stringify(logData, null, 2));
         }
 
-        // Update pages.json with the current hash
-        const pagesConfig = await readPagesConfig(projectPath);
-        if (pagesConfig[filename]) { // Should always be true for an existing note
+        if (pagesConfig[filename]) {
             pagesConfig[filename].currentHash = hash;
             await savePagesConfig(projectPath, pagesConfig);
         }
@@ -215,34 +320,34 @@ async function saveNote({ projectPath, filename, content }) {
     return { success: true, path: filePath, filename: filename };
 }
 
-async function createNote({ projectPath, name, parentId = null }) { // Accept parentId from payload
+async function createNote({ projectPath, name, parentId = null }) {
     if (!(await isPathInProjects(projectPath))) throw new Error("Access denied.");
     await ensureHgGuiInitialized(projectPath);
     
     const pagesConfig = await readPagesConfig(projectPath);
 
-    // Check for unique name
     const nameExists = Object.values(pagesConfig).some(p => p.status === 'active' && p.name === name);
     if (nameExists) {
         return { success: false, error: 'A page with this name already exists.' };
     }
 
-    // Generate unique ID for the filename
     const id = `${Date.now().toString(36)}${Math.random().toString(36).substring(2)}.hgmd`;
     const filePath = path.join(projectPath, id);
+    const content = '';
 
-    // Create empty file
-    await fs.writeFile(filePath, '');
+    await fs.writeFile(filePath, content);
 
-    // Add to config, now including the parentId
     pagesConfig[id] = {
         name: name,
-        parentId: parentId, // Use the passed parentId
+        parentId: parentId,
         icon: '📄',
         currentHash: null,
         status: 'active'
     };
     await savePagesConfig(projectPath, pagesConfig);
+    
+    // SEARCH: Index the new note
+    updateIndexForNote(projectPath, id, name, content).catch(console.error);
 
     return { success: true, note: { id: id, name: name } };
 }
@@ -256,7 +361,6 @@ async function renameNote({ projectPath, id, newName }) {
         return { success: false, error: 'Page not found.' };
     }
 
-    // Check for unique name (excluding the current page itself)
     const nameExists = Object.entries(pagesConfig).some(([key, page]) => {
         return key !== id && page.status === 'active' && page.name === newName;
     });
@@ -264,9 +368,16 @@ async function renameNote({ projectPath, id, newName }) {
         return { success: false, error: 'A page with this name already exists.' };
     }
 
-    // Update name
     pagesConfig[id].name = newName;
     await savePagesConfig(projectPath, pagesConfig);
+    
+    // SEARCH: Re-index with new name.
+    try {
+        const content = await fs.readFile(path.join(projectPath, id), 'utf8');
+        updateIndexForNote(projectPath, id, newName, content).catch(console.error);
+    } catch (e) {
+        updateIndexForNote(projectPath, id, newName, '').catch(console.error);
+    }
 
     return { success: true };
 }
@@ -276,27 +387,27 @@ async function deleteNote({ projectPath, filename }) {
     try {
         const filePath = path.join(projectPath, filename);
         if (!(await isPathInProjects(filePath))) throw new Error("Access denied.");
-        await ensureHgGuiInitialized(projectPath); // ROBUSTNESS: Ensure config file exists before write.
+        await ensureHgGuiInitialized(projectPath);
         
-        // Physically remove the file
         await fs.unlink(filePath);
         
-        // Update the status in pages.json to 'deleted'
         const pagesConfig = await readPagesConfig(projectPath);
         if (pagesConfig[filename]) {
             pagesConfig[filename].status = 'deleted';
             await savePagesConfig(projectPath, pagesConfig);
         }
+        
+        // SEARCH: Remove from index
+        searchManager.removeIndexForNote(projectPath, filename);
 
         return { success: true };
     } catch (error) {
-        // Handle case where file doesn't exist to be unlinked
         if (error.code === 'ENOENT') {
-            // Even if the file is gone, ensure its status is 'deleted' in the config
             const pagesConfig = await readPagesConfig(projectPath);
             if (pagesConfig[filename] && pagesConfig[filename].status !== 'deleted') {
                 pagesConfig[filename].status = 'deleted';
                 await savePagesConfig(projectPath, pagesConfig);
+                searchManager.removeIndexForNote(projectPath, filename);
             }
             return { success: true, message: 'File already deleted.' };
         }
@@ -310,6 +421,8 @@ async function untrackProject(projectPath) {
         const settings = await readSettings();
         settings.projects = settings.projects.filter(p => p.path !== projectPath);
         await saveSettings(settings);
+        // SEARCH: Remove project from index
+        searchManager.removeIndexForProject(projectPath);
         return { success: true };
     } catch (error) {
         console.error(`Failed to untrack project at ${projectPath}:`, error);
@@ -328,16 +441,13 @@ async function deleteProject(event, projectPath) {
         detail: `This action is irreversible and will delete the entire folder at "${projectPath}".`
     });
 
-    if (response === 1) { // User clicked 'Delete Project'
+    if (response === 1) {
         try {
-            // First, untrack it
             await untrackProject(projectPath);
-            // Then, delete the folder
             await fs.rm(projectPath, { recursive: true, force: true });
             return { success: true };
         } catch (error) {
             console.error(`Failed to delete project at ${projectPath}:`, error);
-            // It's possible untracking succeeded but deletion failed. The user should know.
             return { success: false, error: `Project was untracked, but folder deletion failed: ${error.message}` };
         }
     } else {
@@ -348,7 +458,7 @@ async function deleteProject(event, projectPath) {
 
 async function getNoteHistory({ projectPath, filename }) {
     if (!(await isPathInProjects(projectPath))) return [];
-    await ensureHgGuiInitialized(projectPath); // ROBUSTNESS: Ensure log file exists before read.
+    await ensureHgGuiInitialized(projectPath);
 
     const logPath = path.join(projectPath, '.hggui', 'log.json');
     try {
@@ -367,8 +477,6 @@ async function getNoteVersionContent({ projectPath, hash }) {
     const objectPath = path.join(projectPath, '.hggui', 'objects', hash);
     if (!(await isPathInProjects(objectPath))) throw new Error("Access denied.");
 
-    // No need to call ensureHgGuiInitialized here, because if the object file
-    // doesn't exist, we want it to fail anyway. The directory check is implicit.
     return fs.readFile(objectPath, 'utf8');
 }
 
@@ -385,5 +493,9 @@ module.exports = {
   getNoteHistory,
   getNoteVersionContent,
   untrackProject,
-  deleteProject
+  deleteProject,
+  // Indexing functions
+  buildAllIndices,
+  // For testing purposes only. Allows checking the size of the internal index.
+  _getSearchIndex_FOR_TESTING: searchManager._getSearchIndex_FOR_TESTING,
 };

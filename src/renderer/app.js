@@ -7,7 +7,10 @@ import { Editor } from './editor/editor.js';
 import { Settings } from './settings.js';
 import { Titlebar } from './titlebar.js';
 import { Chat } from './chat.js';
-import { Tabs } from './tabs.js'; // Import the new Tabs class
+import { Tabs } from './tabs.js';
+import { SearchModal } from './search-modal.js'; // Import the new SearchModal class
+
+// The SearchModal class has been removed from this file.
 
 class App {
   constructor() {
@@ -38,6 +41,7 @@ class App {
         <div id="app-chat" class="chat-panel"></div>
       </div>
       <div id="settings-modal" class="settings-overlay"></div>
+      <div id="search-modal" class="search-overlay"></div>
     `;
   }
 
@@ -52,6 +56,7 @@ class App {
     const settingsContainer = document.getElementById('settings-modal');
     const chatContainer = document.getElementById('app-chat');
     const tabsContainer = document.getElementById('app-tabs');
+    const searchContainer = document.getElementById('search-modal');
     
     this.editorsWrapper = document.getElementById('app-editors-wrapper');
     this.welcomeMessageEl = document.getElementById('welcome-message');
@@ -61,6 +66,7 @@ class App {
     this.tabs = new Tabs(tabsContainer);
     this.settings = new Settings(settingsContainer);
     this.chat = new Chat(chatContainer);
+    this.searchModal = new SearchModal(this.projectManager, searchContainer);
   }
 
   // Helper to get the currently active editor instance
@@ -149,7 +155,7 @@ class App {
         }
     });
     
-
+    
     // --- Sidebar to App/Other Components connections ---
     this.sidebar.on('fileSelected', async ({ project, file }) => {
       await this.openOrFocusFile(project, file);
@@ -200,9 +206,32 @@ class App {
       }
     });
 
+    this.sidebar.on('searchInitiated', ({ project }) => {
+        let context = {};
+        if (project) {
+            context = {
+                projectPath: project.path,
+                projectName: project.name,
+            };
+        }
+        this.openSearchModal(context);
+    });
+
     // --- View Switching Connections ---
     this.sidebar.on('settingsClicked', () => this.showSettingsView());
     this.settings.on('closeSettings', () => this.showMainView());
+    
+    // --- NEW: Search Modal Connection ---
+    this.searchModal.on('resultSelected', async ({ type, metadata }) => {
+        this.searchModal.hide();
+        if (type === 'page' || type === 'content_line') {
+            const project = { name: metadata.projectName, path: metadata.projectPath };
+            await this.handleProjectSelection(metadata.projectPath);
+            await this.openOrFocusFile(project, metadata.noteId);
+        } else if (type === 'project') {
+            await this.handleProjectSelection(metadata.projectPath);
+        }
+    });
   }
 
   async openOrFocusFile(project, fileId) {
@@ -240,8 +269,8 @@ class App {
 
     // Now that the editor is guaranteed to exist, open/focus the tab.
     // This will trigger the 'activeTabChanged' event, which in turn calls setActiveEditor.
-    const fileName = this.sidebar.getFileName(project.path, fileId);
-    this.tabs.openTab({ fileId: fileId, title: fileName || 'Untitled', project: project });
+    const fileName = this.sidebar.getFileName(fileId) || 'Untitled';
+    this.tabs.openTab({ fileId: fileId, title: fileName, project: project });
   }
   
   // This method now ONLY handles editor visibility, not tab state.
@@ -358,20 +387,26 @@ class App {
 
   handleEscKey(e) {
     if (e.key === 'Escape') {
-      this.showMainView();
+      if (this.searchModal.isVisible) {
+        this.searchModal.hide();
+      } else {
+        this.showMainView();
+      }
     }
   }
 
   showMainView() {
     document.getElementById('app').classList.remove('modal-open');
     document.getElementById('settings-modal').classList.remove('visible');
-    window.removeEventListener('keydown', this.handleEscKey);
+    // Only remove the listener if the search modal is also not visible
+    if (!this.searchModal.isVisible) {
+      window.removeEventListener('keydown', this.handleEscKey);
+    }
   }
 
-  async showSettingsView() {
-    await this.settings.loadCurrentSettings();
+  openSearchModal(context = {}) {
     document.getElementById('app').classList.add('modal-open');
-    document.getElementById('settings-modal').classList.add('visible');
+    this.searchModal.show(context);
     window.addEventListener('keydown', this.handleEscKey);
   }
 
@@ -388,6 +423,40 @@ class App {
     if (session) {
       await this.restoreSession(session);
     }
+    
+    // Global keyboard listeners
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            
+            // Check for shift key to determine search context
+            if (e.shiftKey) {
+                // Page-specific search (Ctrl+Shift+K)
+                const activeEditorInstance = this.activeFileId ? this.editors.get(this.activeFileId) : null;
+                if (activeEditorInstance) {
+                    const { project, editor } = activeEditorInstance;
+                    const noteName = this.sidebar.getFileName(editor.currentFile) || 'Untitled';
+                    
+                    const context = {
+                        projectPath: project.path,
+                        projectName: project.name,
+                        noteId: editor.currentFile,
+                        noteName: noteName
+                    };
+                    this.openSearchModal(context);
+                }
+            } else {
+                // Project-wide (or global) search (Ctrl+K)
+                const currentProject = this.sidebar.currentProject;
+                let context = {};
+                if (currentProject) {
+                    context.projectPath = currentProject.path;
+                    context.projectName = currentProject.name;
+                }
+                this.openSearchModal(context);
+            }
+        }
+    });
 
     loader.classList.add('hidden');
     appContainer.classList.remove('hidden');

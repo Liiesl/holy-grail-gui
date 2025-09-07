@@ -5,6 +5,7 @@ const { registerIpcHandlers } = require('./ipcHandlers');
 const { readSettings, saveSettings } = require('./settings'); // Added this line
 const { autoUpdater } = require('electron-updater'); // Added for auto-updates
 const log = require('electron-log'); // Recommended for electron-updater logging
+const projectManager = require('./projectManager'); // Import projectManager
 
 let mainWindow;
 let sessionRef = { current: {} }; // Use a reference object to hold renderer state
@@ -127,6 +128,12 @@ app.whenReady().then(async () => {
   }
   // Register all IPC handlers for the application
   registerIpcHandlers(sessionRef);
+
+  // --- NEW: Build search index on startup ---
+  // This is done in the background and does not block window creation.
+  projectManager.buildAllIndices().catch(err => {
+    console.error("Failed to build search index on startup:", err);
+  });
 
   createWindow();
 

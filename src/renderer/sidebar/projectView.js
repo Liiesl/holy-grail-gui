@@ -52,12 +52,18 @@ export class ProjectView {
   initElements() {
     this.fileTree = this.container.querySelector('#file-tree');
     this.newPageBtn = this.container.querySelector('#new-page-btn');
+    this.searchInput = this.container.querySelector('.search-input');
   }
 
   addEventListeners() {
     this.newPageBtn.addEventListener('click', () => {
       if (!this.currentProject) return;
       this.beginCreateNewNote(); // This will create a root-level page
+    });
+
+    this.searchInput.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.emit('searchInitiated', { project: this.currentProject });
     });
   }
 

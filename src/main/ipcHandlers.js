@@ -1,6 +1,7 @@
 // src/main/ipcHandlers.js
 const { ipcMain, app } = require('electron'); // Added app
 const projectManager = require('./projectManager');
+const searchManager = require('./searchManager'); // Import the new search manager
 const { readSettings, saveSettings } = require('./settings'); // Import settings functions
 const { generateChatResponse } = require('./gemini'); // Import Gemini function
 
@@ -89,6 +90,17 @@ function registerIpcHandlers(sessionRef) {
   // --- NEW: App Info ---
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+  });
+
+  // --- NEW: Search Handlers ---
+  ipcMain.handle('search-perform', (event, { query, context }) => {
+    // Now calls the dedicated search manager for performing a search
+    return searchManager.performSearch(query, context);
+  });
+
+  ipcMain.handle('search-build-all-indices', () => {
+    // Building the index is an orchestration task that projectManager handles
+    return projectManager.buildAllIndices();
   });
 }
 

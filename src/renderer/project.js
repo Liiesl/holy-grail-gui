@@ -53,4 +53,9 @@ export class ProjectManager {
   async getNoteVersionContent(projectPath, hash) {
     return window.api.getNoteVersionContent(projectPath, hash);
   }
+
+  // Search Method
+  async performSearch(query, context) {
+    return window.api.performSearch(query, context);
+  }
 }

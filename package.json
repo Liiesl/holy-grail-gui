@@ -1,6 +1,6 @@
 {
   "name": "hggui",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "",
   "main": "src/main/index.js",
   "scripts": {
@@ -8,7 +8,8 @@
     "build": "electron-builder",
     "debug": "electron --trace-warnings .",
     "stress-test": "node --experimental-vm-modules node_modules/jest/bin/jest.js __tests__/HGMDEngine.stresstest.js",
-    "rule-test": "node --experimental-vm-modules node_modules/jest/bin/jest.js __tests__/hgmd.test.js"
+    "rule-test": "node --experimental-vm-modules node_modules/jest/bin/jest.js __tests__/hgmd.test.js",
+    "bench-search": "node --expose-gc --experimental-vm-modules node_modules/jest/bin/jest.js __tests__/projectManager.test.js"
   },
   "keywords": [],
   "author": "",

@@ -9,6 +9,7 @@
 @import url("titlebar.css");
 @import url("chat.css");
 @import url("tabs.css"); /* Added import for tabs */
+@import url("search-modal.css"); /* NEW: Added import for search modal */
 
 :root {
     /* ... (variables are unchanged) ... */

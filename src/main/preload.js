@@ -48,4 +48,7 @@ contextBridge.exposeInMainWorld('api', {
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),
   installUpdate: () => ipcRenderer.send('install-update'),
   onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, status) => callback(status)),
+
+  // --- NEW: Search ---
+  performSearch: (query, context) => ipcRenderer.invoke('search-perform', { query, context }),
 });
