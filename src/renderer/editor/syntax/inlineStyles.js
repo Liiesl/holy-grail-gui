@@ -2,8 +2,12 @@
 
 /**
  * Syntax rules for inline text styling (bold, italic, etc.).
+ * Escaped characters are handled by the HGMDEngine's _processInlineMd method
+ * before these rules are applied.
  */
 const inlineStyleRules = [
+  // The 'escape' rule has been removed from here. Its logic is now
+  // centralized in the HGMDEngine._processInlineMd method.
   {
     name: 'code',
     type: 'inline',

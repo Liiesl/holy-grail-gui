@@ -5,6 +5,16 @@
  */
 const blockRules = [
   {
+    name: 'empty-lines',
+    type: 'block',
+    // NOTE: mdRegex is omitted; this rule is for HTML -> MD conversion.
+    // This is the rule for an intentional blank line in the editor.
+    // It is placed BEFORE the general 'paragraph' rule to ensure it is
+    // processed first, preserving the blank line on save.
+    htmlRegex: /<p><br\s*\/?><\/p>/gi,
+    htmlToMd: '\n',
+  },
+  {
     name: 'heading',
     type: 'block',
     mdRegex: /^(#{1,3})\s*(.*)/,
@@ -81,7 +91,7 @@ const blockRules = [
       let contentLines = [];
       let i = startIndex;
       while (i < lines.length && lines[i].startsWith('>')) {
-        contentLines.push(lines[i].substring(lines[i][1] === ' ' ? 2 : 1));
+        contentLines.push(lines[i].substring(lines[i] === ' ' ? 2 : 1));
         i++;
       }
       const content = contentLines.join('\n');
@@ -138,11 +148,11 @@ const blockRules = [
       const itemRegex = /<li>([\s\S]*?)<\/li>/gi;
       let itemMatch;
       while ((itemMatch = itemRegex.exec(content)) !== null) {
-        let itemContent = itemMatch[1];
+        let itemContent = itemMatch;
         const checkboxRegex = /<input type="checkbox"[^>]*>/;
         const checkboxMatch = itemContent.match(checkboxRegex);
         if (checkboxMatch) {
-          const isChecked = /checked/.test(checkboxMatch[0]);
+          const isChecked = /checked/.test(checkboxMatch);
           const cleanedContent = itemContent.replace(checkboxRegex, '').replace(/<br\s*\/?>/gi, '').trim();
           markdown += `- [${isChecked ? 'x' : ' '}] ${cleanedContent}\n`;
         } else {
@@ -181,7 +191,7 @@ const blockRules = [
       let itemMatch;
       let counter = 1;
       while ((itemMatch = itemRegex.exec(content)) !== null) {
-        const itemContent = itemMatch[1];
+        const itemContent = itemMatch;
         const cleanedContent = itemContent.replace(/<br\s*\/?>/gi, '').trim();
         if (cleanedContent) {
           markdown += `${counter}. ${cleanedContent}\n`;
@@ -191,6 +201,19 @@ const blockRules = [
         counter++;
       }
       return markdown;
+    },
+  },
+  {
+    name: 'paragraph',
+    type: 'block',
+    // mdRegex is intentionally omitted for md->html fallback handling.
+    htmlRegex: /<p>([\s\S]*?)<\/p>/gi,
+    htmlToMd: (match, content) => {
+      // Convert inner <br> to spaces for markdown, trim whitespace.
+      const markdownContent = content.replace(/<br\s*\/?>/gi, ' ').trim();
+      // An empty <p></p> tag or a <p> containing only whitespace should not produce output.
+      // The `empty-lines` rule has already handled legitimate <p><br></p> cases.
+      return markdownContent ? markdownContent + '\n\n' : '';
     },
   },
 ];

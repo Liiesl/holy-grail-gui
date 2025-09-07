@@ -18,13 +18,30 @@ export class HGMDEngine {
    */
   _processInlineMd(text) {
     if (text === undefined || text === null) return '';
-    let processedText = text;
-    // For inline rules, simple replace is often fine as the target text is usually
-    // a single line or small block, and replace is optimized. If this becomes
-    // an issue, it would need the array-building approach.
+    
+    // FIX: Implement a placeholder system to correctly handle escaped characters.
+    const escapedChars = [];
+    const placeholder = '\uE000'; // A character from the Private Use Area
+
+    // 1. Protect escaped characters by replacing them with placeholders.
+    let protectedText = text.replace(/\\([!"#$%&'()*+,-./:;<=>?@\[\\\]^_`{|}~])/g, (match, char) => {
+      escapedChars.push(char);
+      return placeholder;
+    });
+
+    let processedText = protectedText;
+    
+    // 2. Process all other inline rules. These rules will ignore the placeholders.
     this.inlineRules.forEach(rule => {
       processedText = processedText.replace(rule.mdRegex, rule.mdToHtml);
     });
+
+    // 3. Restore the original characters from the placeholders.
+    // The `indexOf` check handles cases where there are no escaped characters.
+    if (escapedChars.length > 0) {
+      processedText = processedText.replace(new RegExp(placeholder, 'g'), () => escapedChars.shift());
+    }
+    
     return processedText;
   }
 
@@ -76,8 +93,18 @@ export class HGMDEngine {
       
       // If we are here, the line is not a recognized block element.
       // It's either an empty line or part of a paragraph.
+      
+      // FIX: This logic is now smarter. It distinguishes between a paragraph
+      // separator (a single blank line) and an intentional empty paragraph
+      // (multiple blank lines).
       if (lines[i].trim() === '') {
-        htmlParts.push('<p><br></p>');
+        // Look ahead: is the next line also blank?
+        // If so, this is an intentional empty paragraph.
+        if (i + 1 < lines.length && lines[i + 1].trim() === '') {
+          htmlParts.push('<p><br></p>');
+        }
+        // Otherwise, it's just a separator between blocks, so we consume
+        // it without generating any HTML.
         i++;
         continue;
       }
@@ -94,7 +121,7 @@ export class HGMDEngine {
       }
       
       if (paragraphLines.length > 0) {
-        const paragraphContent = paragraphLines.join(' ');
+        const paragraphContent = paragraphLines.join('<br>');
         const processedContent = this._processInlineMd(paragraphContent);
         htmlParts.push(`<p>${processedContent}</p>`);
       }
@@ -117,6 +144,31 @@ export class HGMDEngine {
   }
 
   /**
+   * Recursively traverses a DOM node and escapes ASCII punctuation and symbols in text nodes.
+   * This prevents the markdown converter from interpreting user-inputted syntax.
+   * @param {Node} node The DOM node to process.
+   * @private
+   */
+  _escapeAsciiSyntaxInTextNodes(node) {
+    // A comprehensive regex for all standard ASCII punctuation and symbols.
+    const asciiPunctuationAndSymbols = /[\\!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      // Do not escape content within code blocks or preformatted text elements.
+      if (node.parentNode.closest('code, pre')) {
+        return;
+      }
+      // Replace each special character with a backslash-escaped version.
+      node.textContent = node.textContent.replace(asciiPunctuationAndSymbols, '\\$&');
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // If it's an element node, recursively process its children.
+      for (const child of node.childNodes) {
+        this._escapeAsciiSyntaxInTextNodes(child);
+      }
+    }
+  }
+  
+  /**
    * Converts an HTML string from the editor to a Markdown string.
    * @param {string} html - The HTML content.
    * @returns {string} - The resulting Markdown.
@@ -124,10 +176,17 @@ export class HGMDEngine {
   htmlToMarkdown(html) {
     if (!html) return '';
 
-    // Pre-processing: Standardize input from contenteditable fields.
-    let markdown = html
-      .replace(/&nbsp;/g, ' '); // Replace non-breaking spaces.
+    // Pre-processing Step 1: Parse HTML and escape special characters in text nodes.
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    this._escapeAsciiSyntaxInTextNodes(doc.body);
+    let processedHtml = doc.body.innerHTML;
 
+    // Pre-processing Step 2: Standardize input from contenteditable fields.
+    processedHtml = processedHtml.replace(/&nbsp;/g, ' '); // Replace non-breaking spaces.
+    
+    let markdown = processedHtml;
+    
     // Apply all rules in their defined order. The order is critical here.
     this.rules.forEach(rule => {
       if (rule.htmlRegex) {

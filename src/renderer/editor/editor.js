@@ -291,8 +291,9 @@ export class Editor {
   async saveCurrentNote(options = {}) {
     const { isRestore = false } = options;
     if (!this.currentProject || !this.currentFile || (!this.isDirty && !isRestore)) return;
-
+    
     const htmlContent = this.editorEl.innerHTML;
+    // The engine now handles escaping internally.
     const markdownContent = this.hgmd.toMarkdown(htmlContent);
     
     await this.projectManager.saveNote({

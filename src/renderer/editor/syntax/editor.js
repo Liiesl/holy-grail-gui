@@ -17,12 +17,9 @@ const editorArtifactRules = [
     htmlRegex: /<li>\s*(?:<br\s*\/?>)?\s*<\/li>/gi,
     htmlToMd: '<li> </li>',
   },
-  {
-    name: 'empty-lines',
-    type: 'block', // Type is for processing order in htmlToMarkdown
-    htmlRegex: /<(p|div)><br\s*\/?><\/\1>/gi,
-    htmlToMd: '\n',
-  },
+  // The 'empty-lines' rule that was here has been moved to blocks.js to ensure
+  // it runs before the general 'paragraph' rule, fixing a bug where intentional
+  // blank lines were deleted on save.
   {
     name: 'lines',
     type: 'block', // Type is for processing order in htmlToMarkdown

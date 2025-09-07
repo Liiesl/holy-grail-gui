@@ -55,10 +55,16 @@ const widgetRules = [
         return style;
       });
 
-      const headerCells = headerLine.slice(1, -1).split('|');
+      // FIX: Implement a placeholder for escaped pipes to prevent incorrect splitting.
+      const pipePlaceholder = '\uE001'; // A character from the Private Use Area
+      const protectEscapedPipes = (str) => str.replace(/\\\|/g, pipePlaceholder);
+      const restoreEscapedPipes = (str) => str.replace(new RegExp(pipePlaceholder, 'g'), '|');
+      
+      const protectedHeader = protectEscapedPipes(headerLine.slice(1, -1));
+      const headerCells = protectedHeader.split('|');
       const thsHtml = headerCells.map((cell, i) => {
         const style = columnStyles[i] ? `style="${columnStyles[i]}"` : '';
-        const content = engine._processInlineMd(cell.trim());
+        const content = engine._processInlineMd(restoreEscapedPipes(cell).trim());
         return `<th ${style}>${content}</th>`;
       });
       const theadHtmlParts = [`<thead><tr>`, ...thsHtml, `</tr></thead>`];
@@ -67,14 +73,16 @@ const widgetRules = [
       let currentRowIndex = startIndex + 2;
       while (currentRowIndex < lines.length && lines[currentRowIndex].trim().startsWith('|')) {
         const rowLine = lines[currentRowIndex].trim();
-        const bodyCells = rowLine.slice(1, -1).split('|');
+        // Protect, split, then restore for each cell.
+        const protectedRow = protectEscapedPipes(rowLine.slice(1, -1));
+        const bodyCells = protectedRow.split('|');
         const tdsHtml = bodyCells.map((cell, i) => {
           let tdStyle = '';
           if (columnStyles[i]) {
             const alignMatch = columnStyles[i].match(/text-align:\s*[^;]+/);
             if (alignMatch) tdStyle = `style="${alignMatch[0]}"`;
           }
-          const content = engine._processInlineMd(cell.trim());
+          const content = engine._processInlineMd(restoreEscapedPipes(cell).trim());
           return `<td ${tdStyle}>${content}</td>`;
         });
         tbodyRowsHtml.push(`<tr>`, ...tdsHtml, `</tr>`);
