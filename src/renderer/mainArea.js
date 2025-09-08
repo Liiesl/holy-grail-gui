@@ -18,7 +18,6 @@ export class Main {
     // State managed by this component
     this.editors = new Map();
     this.tabInstances = new Map();
-    // NEW STRUCTURE: Panes now hold multiple file IDs
     this.paneLayout = { id: 'root', type: 'leaf', fileIds: [], activeFileId: null };
     this.activePaneId = 'root';
     this.dropInfo = null; // For D&D visual feedback
@@ -55,20 +54,14 @@ export class Main {
 
   _wireUpTabInstanceEventListeners(tabsInstance, paneId) {
     tabsInstance.on('setActiveTabRequested', ({ fileId }) => {
-        // Set the local pane's active tab first
         const pane = this.findNode(n => n.id === paneId);
-        if (pane) {
-            pane.activeFileId = fileId;
-        }
-        // Then notify the app globally
+        if (pane) pane.activeFileId = fileId;
         this.emit('setActiveTabRequested', { fileId });
     });
 
     tabsInstance.on('tabCloseRequested', ({ fileId }) => {
         const instance = this.editors.get(fileId);
-        if (instance && !instance.editor.confirmDiscardChanges()) {
-            return;
-        }
+        if (instance && !instance.editor.confirmDiscardChanges()) return;
         this.emit('closeTabRequested', { fileId });
     });
     
@@ -82,9 +75,7 @@ export class Main {
                 }
             }
         }
-        if (canClose) {
-            this.emit('closeOtherTabsRequested', { fileId });
-        }
+        if (canClose) this.emit('closeOtherTabsRequested', { fileId });
     });
 
     tabsInstance.on('tabDropped', ({ fileId }) => {
@@ -119,60 +110,32 @@ export class Main {
   }
   
   setPaneLayout(layout) {
-    // Ensure backward compatibility or reset state with new structure
     const fixLayout = (node) => {
         if (node.type === 'leaf') {
-            if (node.fileId) { // Old format
+            if (node.fileId) {
                 node.fileIds = node.fileId ? [node.fileId] : [];
                 node.activeFileId = node.fileId;
                 delete node.fileId;
             }
             if (!node.fileIds) node.fileIds = [];
         }
-        if (node.type === 'group') {
-            node.children.forEach(fixLayout);
-        }
+        if (node.type === 'group') node.children.forEach(fixLayout);
         return node;
     }
     this.paneLayout = layout ? fixLayout(layout) : { id: 'root', type: 'leaf', fileIds: [], activeFileId: null };
   }
 
   updateOnTabsChanged({ openTabs, activeTabId }) {
-    // 1. Check the flag to prevent re-rendering from the feedback loop
-    if (this.isInternalLayoutChange) {
-        return;
-    }
+    if (this.isInternalLayoutChange) return;
 
     const activePane = this.findNodeByFileId(activeTabId, this.paneLayout);
     if (activePane) {
         this.activePaneId = activePane.id;
-        activePane.activeFileId = activeTabId; // Sync pane's active tab
+        activePane.activeFileId = activeTabId;
     }
 
     const openFileIds = new Set(openTabs.map(t => t.fileId));
-    const pruneLayout = (node) => {
-        if (!node) return null;
-        if (node.type === 'leaf') {
-            // Remove closed file IDs from the pane
-            node.fileIds = node.fileIds.filter(id => openFileIds.has(id));
-            // If the active file was closed, pick a new one
-            if (node.activeFileId && !node.fileIds.includes(node.activeFileId)) {
-                node.activeFileId = node.fileIds[node.fileIds.length - 1] || null;
-            }
-            // If the pane becomes empty and it's not the root, it could be pruned
-            // For now, we keep empty panes. Groups will collapse if they have only one child.
-            return node;
-        }
-        if (node.type === 'group') {
-            node.children = node.children.map(pruneLayout).filter(Boolean);
-            if (node.children.length === 0) return null;
-            if (node.children.length === 1) return node.children[0];
-            return node;
-        }
-        return node;
-    };
-    const newLayout = pruneLayout(JSON.parse(JSON.stringify(this.paneLayout)));
-    this.paneLayout = newLayout || { id: 'root', type: 'leaf', fileIds: [], activeFileId: null };
+    this._pruneAndCompactLayout(openFileIds); // Use the new helper method
 
     const allFilesInLayout = new Set(this.getAllFileIdsInLayout());
     for (const fileId of this.editors.keys()) {
@@ -193,13 +156,10 @@ export class Main {
     } else {
       const success = await this.ensureEditorExists(project, fileId);
       if (success) {
-        // Add the new file to the currently active pane
         const activePane = this.findNode(n => n.id === this.activePaneId) || this.paneLayout;
         if (activePane.type === 'leaf') {
-            if (!activePane.fileIds.includes(fileId)) {
-                activePane.fileIds.push(fileId);
-            }
-            activePane.activeFileId = fileId; // Make it active in its pane
+            if (!activePane.fileIds.includes(fileId)) activePane.fileIds.push(fileId);
+            activePane.activeFileId = fileId;
         }
         this.emit('openTabRequested', { projectPath: project.path, fileId });
       }
@@ -215,15 +175,10 @@ export class Main {
     const newEditor = new Editor(this.projectState, this.hgmd, editorContainer);
     this.editors.set(fileId, { editor: newEditor, container: editorContainer, project: project });
 
-    newEditor.on('dirtyStateChanged', ({ isDirty }) => {
-        this.emit('editorDirtyStateChanged', { fileId, isDirty });
-    });
-    
+    newEditor.on('dirtyStateChanged', ({ isDirty }) => this.emit('editorDirtyStateChanged', { fileId, isDirty }));
     newEditor.on('noteSaved', () => {
         const pane = this.findNodeByFileId(fileId, this.paneLayout);
-        if (pane && pane.id === this.activePaneId) {
-            this.emit('noteSavedInActivePane', { project, fileId });
-        }
+        if (pane && pane.id === this.activePaneId) this.emit('noteSavedInActivePane', { project, fileId });
     });
 
     const loadSuccess = await newEditor.loadNoteContent(project.path, fileId);
@@ -239,6 +194,37 @@ export class Main {
   }
 
   // --- Pane Management Methods (Internal) ---
+
+  // NEW: Extracted private helper for pruning the layout
+  _pruneAndCompactLayout(openFileIds) {
+    const prune = (node) => {
+        if (!node) return null;
+        if (node.type === 'leaf') {
+            // Filter out any files that are no longer in the master open list
+            if (openFileIds) {
+              node.fileIds = node.fileIds.filter(id => openFileIds.has(id));
+            }
+            // If a non-root pane becomes empty, prune it from the layout tree.
+            if (node.fileIds.length === 0 && node.id !== 'root') {
+                return null;
+            }
+            // If the active file was closed/moved, pick a new one
+            if (node.activeFileId && !node.fileIds.includes(node.activeFileId)) {
+                node.activeFileId = node.fileIds[node.fileIds.length - 1] || null;
+            }
+            return node;
+        }
+        if (node.type === 'group') {
+            node.children = node.children.map(prune).filter(Boolean);
+            if (node.children.length === 0) return null; // Group is empty
+            if (node.children.length === 1) return node.children[0]; // Group is redundant
+            return node;
+        }
+        return node;
+    };
+    const newLayout = prune(JSON.parse(JSON.stringify(this.paneLayout)));
+    this.paneLayout = newLayout || { id: 'root', type: 'leaf', fileIds: [], activeFileId: null };
+  }
   
   renderPanes({ openTabs } = { openTabs: [] }) {
     const activeContent = document.activeElement;
@@ -262,26 +248,18 @@ export class Main {
             paneEl.appendChild(tabsContainer);
             paneEl.appendChild(editorArea);
 
-            // Get all tabs belonging to this pane
             const paneTabs = openTabs.filter(t => node.fileIds.includes(t.fileId));
             
             if (paneTabs.length > 0) {
                 const tabsInstance = new Tabs(tabsContainer, this.contextMenuService);
                 this.tabInstances.set(node.id, tabsInstance);
                 this._wireUpTabInstanceEventListeners(tabsInstance, node.id);
-                
-                // Pass all of the pane's tabs to the Tabs component
                 tabsInstance.update({ openTabs: paneTabs, activeTabId: node.activeFileId });
                 
-                // Show the editor for the active file in this pane
                 const editorInstance = this.editors.get(node.activeFileId);
-                if (editorInstance) {
-                    editorArea.appendChild(editorInstance.container);
-                }
+                if (editorInstance) editorArea.appendChild(editorInstance.container);
             }
-            if (node.id === this.activePaneId) {
-                paneEl.classList.add('active');
-            }
+            if (node.id === this.activePaneId) paneEl.classList.add('active');
             return paneEl;
         } else if (node.type === 'group') {
             const groupEl = document.createElement('div');
@@ -300,23 +278,17 @@ export class Main {
     };
 
     const rootEl = buildNode(this.paneLayout);
-    if (rootEl) {
-        this.editorsWrapper.insertBefore(rootEl, this.welcomeMessageEl);
-    }
+    if (rootEl) this.editorsWrapper.insertBefore(rootEl, this.welcomeMessageEl);
     
     const hasOpenFile = this.getAllFileIdsInLayout().length > 0;
     this.welcomeMessageEl.style.display = hasOpenFile ? 'none' : 'flex';
 
-    if (document.body.contains(activeContent)) {
-        activeContent.focus();
-    }
+    if (document.body.contains(activeContent)) activeContent.focus();
   }
 
   findNode(predicate, node = this.paneLayout) {
     if (!node) return null;
-    if (predicate(node)) {
-        return node;
-    }
+    if (predicate(node)) return node;
     if (node.type === 'group') {
         for (const child of node.children) {
             const found = this.findNode(predicate, child);
@@ -333,12 +305,8 @@ export class Main {
   
   getAllFileIdsInLayout(node = this.paneLayout) {
     if (!node) return [];
-    if (node.type === 'leaf') {
-        return node.fileIds || [];
-    }
-    if (node.type === 'group') {
-        return node.children.flatMap(child => this.getAllFileIdsInLayout(child));
-    }
+    if (node.type === 'leaf') return node.fileIds || [];
+    if (node.type === 'group') return node.children.flatMap(child => this.getAllFileIdsInLayout(child));
     return [];
   }
 
@@ -346,11 +314,9 @@ export class Main {
     const sourceNode = this.findNodeByFileId(draggedFileId);
     const targetNode = this.findNode(n => n.id === targetPaneId);
 
-    if (!sourceNode || !targetNode || sourceNode.id === targetNode.id) {
-        return;
-    }
+    if (!sourceNode || !targetNode || sourceNode.id === targetNode.id) return;
 
-    // 2. Update the data model first
+    // Update the data model first
     sourceNode.fileIds = sourceNode.fileIds.filter(id => id !== draggedFileId);
     if (sourceNode.activeFileId === draggedFileId) {
         sourceNode.activeFileId = sourceNode.fileIds[sourceNode.fileIds.length - 1] || null;
@@ -361,12 +327,14 @@ export class Main {
     }
     targetNode.activeFileId = draggedFileId;
 
+    // Run the pruning logic after the move
+    this._pruneAndCompactLayout();
+
     this.isInternalLayoutChange = true;
     
-    // 3. Directly re-render the UI with the updated model
+    // Re-render the UI with the updated model
     this.renderPanes({ openTabs: this.projectState.openTabs });
 
-    // 4. Notify the rest of the app about the state change
     this.emit('setActiveTabRequested', { fileId: draggedFileId });
     
     this.isInternalLayoutChange = false;
@@ -443,7 +411,6 @@ export class Main {
         
         await this.ensureEditorExists(project, draggedFileId);
 
-        // Remove the tab from its original pane before splitting
         const sourceNode = this.findNodeByFileId(draggedFileId);
         if (sourceNode) {
             sourceNode.fileIds = sourceNode.fileIds.filter(id => id !== draggedFileId);
@@ -468,13 +435,13 @@ export class Main {
                     children: children,
                 };
             }
-            if (node.type === 'group') {
-                node.children = node.children.map(splitNode);
-            }
+            if (node.type === 'group') node.children = node.children.map(splitNode);
             return node;
         };
+        
+        this.paneLayout = splitNode(JSON.parse(JSON.stringify(this.paneLayout)));
 
-        this.paneLayout = splitNode(this.paneLayout);
+        this._pruneAndCompactLayout(); // Prune after splitting too
         
         this.emit('openTabRequested', { projectPath: project.path, fileId: draggedFileId });
         this.emit('setActiveTabRequested', { fileId: draggedFileId });

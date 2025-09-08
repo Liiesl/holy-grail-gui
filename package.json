@@ -1,6 +1,6 @@
 {
   "name": "hggui",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "",
   "main": "src/main/index.js",
   "scripts": {
