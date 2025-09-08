@@ -296,3 +296,74 @@
     opacity: 1;
     background-color: hsl(from var(--color-primary) h s l / 1.1); /* Brighter on hover */
 }
+
+/* --- Find Bar --- */
+#find-bar {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    z-index: 101; /* Above floating toolbar */
+    background-color: var(--color-dark-surface);
+    padding: 5px 8px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#find-bar.hidden {
+    display: none;
+}
+
+#find-input {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 5px;
+    padding: 4px 8px;
+    outline: none;
+    width: 150px;
+}
+
+#find-input:focus {
+    border-color: var(--color-primary);
+}
+
+#find-counter {
+    font-size: 12px;
+    color: var(--color-secondary);
+    white-space: nowrap;
+}
+
+#find-bar button {
+    background-color: transparent;
+    border: none;
+    color: var(--color-text-on-dark);
+    font-size: 18px;
+    padding: 0 4px;
+    border-radius: 5px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+#find-bar button:hover {
+    background-color: var(--color-secondary);
+}
+
+#find-close {
+    font-size: 22px;
+}
+
+/* --- Find Highlights --- */
+#editor mark.find-match {
+    background-color: #fef07a;
+    color: black;
+    padding: 0;
+    border-radius: 2px;
+}
+
+#editor mark.find-match.current {
+    background-color: #ff9800;
+    box-shadow: 0 0 0 1px #ff9800;
+}
