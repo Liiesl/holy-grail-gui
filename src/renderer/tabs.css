@@ -118,3 +118,59 @@
 .tab-action-btn.danger:hover:not(:disabled) {
     color: var(--color-danger);
 }
+/* src/renderer/tabs.css */
+
+/* ... (existing content of tabs.css) ... */
+
+.tab-action-btn.danger:hover:not(:disabled) {
+    color: var(--color-danger);
+}
+
+/*
+ * Styles for Drag-and-Drop Pane Splitting
+ */
+
+#drop-overlay {
+    position: absolute;
+    background-color: transparent; /* The overlay itself is invisible */
+    pointer-events: none; /* Let events pass through so we can detect underlying panes */
+    z-index: 100;
+    transition: opacity 0.1s ease-in-out;
+    box-sizing: border-box;
+    /* The JS will set top, left, width, height */
+}
+
+#drop-overlay.hidden {
+    display: none;
+}
+
+/* Use a pseudo-element for the visual drop indicator for performance */
+#drop-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-primary-transparent, rgba(0, 120, 255, 0.2));
+    border: 2px solid var(--color-primary, rgba(0, 120, 255, 0.7));
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out, width 0.1s ease-in-out, left 0.1s ease-in-out;
+    transform: scale(0.95);
+}
+
+#drop-overlay.show-left::before,
+#drop-overlay.show-right::before {
+    opacity: 1;
+    transform: scale(1);
+    width: 50%; /* Show indicator on half of the pane */
+}
+
+#drop-overlay.show-left::before {
+    left: 0;
+}
+
+#drop-overlay.show-right::before {
+    left: 50%;
+}

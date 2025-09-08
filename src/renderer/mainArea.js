@@ -22,6 +22,7 @@ export class Main {
     this.activePaneId = 'root';
     this.dropInfo = null; // For D&D visual feedback
     this.isInternalLayoutChange = false; // Flag to prevent re-entrant rendering
+    this.currentDragTargetPane = null; // Cache the current pane for D&D performance
 
     this.listeners = {};
 
@@ -195,35 +196,53 @@ export class Main {
 
   // --- Pane Management Methods (Internal) ---
 
-  // NEW: Extracted private helper for pruning the layout
   _pruneAndCompactLayout(openFileIds) {
-    const prune = (node) => {
+    const prune = (node, isTheRootNode) => {
         if (!node) return null;
         if (node.type === 'leaf') {
-            // Filter out any files that are no longer in the master open list
             if (openFileIds) {
               node.fileIds = node.fileIds.filter(id => openFileIds.has(id));
             }
-            // If a non-root pane becomes empty, prune it from the layout tree.
-            if (node.fileIds.length === 0 && node.id !== 'root') {
+            // Prune empty leaf nodes, unless it's the very last top-level pane.
+            if (node.fileIds.length === 0 && !isTheRootNode) {
                 return null;
             }
-            // If the active file was closed/moved, pick a new one
             if (node.activeFileId && !node.fileIds.includes(node.activeFileId)) {
                 node.activeFileId = node.fileIds[node.fileIds.length - 1] || null;
             }
             return node;
         }
         if (node.type === 'group') {
-            node.children = node.children.map(prune).filter(Boolean);
+            // Children of a group are never "the root node"
+            node.children = node.children.map(child => prune(child, false)).filter(Boolean);
             if (node.children.length === 0) return null; // Group is empty
-            if (node.children.length === 1) return node.children[0]; // Group is redundant
+            if (node.children.length === 1) return node.children[0]; // Group is redundant, collapse it.
             return node;
         }
         return node;
     };
-    const newLayout = prune(JSON.parse(JSON.stringify(this.paneLayout)));
+    // The top-level node passed to prune is considered "the root node".
+    const newLayout = prune(JSON.parse(JSON.stringify(this.paneLayout)), true);
     this.paneLayout = newLayout || { id: 'root', type: 'leaf', fileIds: [], activeFileId: null };
+
+    // --- START OF THE FIX ---
+    // After pruning, the active pane might have been removed. We must ensure
+    // this.activePaneId still points to a valid pane in the new layout.
+    const activePaneExists = this.findNode(n => n.id === this.activePaneId);
+    if (!activePaneExists) {
+      // If the old active pane is gone, find the new one.
+      // Priority 1: The pane that contains the globally active tab.
+      const paneWithActiveTab = this.findNodeByFileId(this.projectState.activeTabId);
+      if (paneWithActiveTab) {
+        this.activePaneId = paneWithActiveTab.id;
+      } else {
+        // Priority 2 (fallback): The first available leaf pane.
+        const firstLeaf = this.findNode(n => n.type === 'leaf');
+        // Ensure we fall back to a valid ID even if no leaves exist (e.g., last tab closed)
+        this.activePaneId = firstLeaf ? firstLeaf.id : (this.paneLayout.id || 'root');
+      }
+    }
+    // --- END OF THE FIX ---
   }
   
   renderPanes({ openTabs } = { openTabs: [] }) {
@@ -361,10 +380,30 @@ export class Main {
     this.editorsWrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
         const targetPane = e.target.closest('.pane');
-        if (!targetPane) {
-            this.dropOverlay.classList.add('hidden');
+
+        // If there's no target pane, or we're not dragging a tab, hide overlay and return.
+        if (!targetPane || !e.dataTransfer.types.includes('text/plain')) {
+            if (this.currentDragTargetPane) {
+                this.currentDragTargetPane = null;
+                this.dropOverlay.classList.add('hidden');
+                this.dropInfo = null;
+            }
             return;
-        };
+        }
+
+        // Optimization: only reposition the overlay when the target pane changes.
+        // This avoids expensive style recalculations on every mouse move.
+        if (targetPane !== this.currentDragTargetPane) {
+            this.currentDragTargetPane = targetPane;
+            this.dropOverlay.classList.remove('hidden');
+            const overlay = this.dropOverlay;
+            overlay.style.top = `${targetPane.offsetTop}px`;
+            overlay.style.left = `${targetPane.offsetLeft}px`;
+            overlay.style.width = `${targetPane.offsetWidth}px`;
+            overlay.style.height = `${targetPane.offsetHeight}px`;
+            // Clear any previous side classes for a clean state
+            overlay.classList.remove('show-left', 'show-right');
+        }
 
         const rect = targetPane.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -374,30 +413,43 @@ export class Main {
         if (x < dropZoneWidth) side = 'left';
         else if (x > rect.width - dropZoneWidth) side = 'right';
 
+        // Optimization: use classes to show drop zones. Toggling classes is much faster
+        // than changing styles directly, allowing the browser to use hardware acceleration.
         if (side) {
             this.dropInfo = { targetPaneId: targetPane.dataset.paneId, side };
-            this.dropOverlay.classList.remove('hidden');
-            const overlay = this.dropOverlay;
-            overlay.style.top = `${targetPane.offsetTop}px`;
-            overlay.style.left = side === 'left' ? `${targetPane.offsetLeft}px` : `${targetPane.offsetLeft + targetPane.offsetWidth / 2}px`;
-            overlay.style.width = `${targetPane.offsetWidth / 2}px`;
-            overlay.style.height = `${targetPane.offsetHeight}px`;
+            if (side === 'left' && !this.dropOverlay.classList.contains('show-left')) {
+                this.dropOverlay.classList.add('show-left');
+                this.dropOverlay.classList.remove('show-right');
+            } else if (side === 'right' && !this.dropOverlay.classList.contains('show-right')) {
+                this.dropOverlay.classList.add('show-right');
+                this.dropOverlay.classList.remove('show-left');
+            }
         } else {
             this.dropInfo = null;
-            this.dropOverlay.classList.add('hidden');
+            if (this.dropOverlay.classList.contains('show-left') || this.dropOverlay.classList.contains('show-right')) {
+                this.dropOverlay.classList.remove('show-left', 'show-right');
+            }
         }
     });
 
     this.editorsWrapper.addEventListener('dragleave', (e) => {
+        // If the mouse leaves the wrapper entirely, hide the overlay.
         if (!this.editorsWrapper.contains(e.relatedTarget)) {
             this.dropOverlay.classList.add('hidden');
+            this.dropOverlay.classList.remove('show-left', 'show-right');
             this.dropInfo = null;
+            this.currentDragTargetPane = null; // Reset the cached target pane
         }
     });
 
     this.editorsWrapper.addEventListener('drop', async (e) => {
         e.preventDefault();
+        
+        // Clean up D&D state
         this.dropOverlay.classList.add('hidden');
+        this.dropOverlay.classList.remove('show-left', 'show-right');
+        this.currentDragTargetPane = null;
+
         if (!this.dropInfo) return;
 
         const draggedFileId = e.dataTransfer.getData('text/plain');
@@ -439,12 +491,27 @@ export class Main {
             return node;
         };
         
+        // --- START OF FIX ---
+        // Flag that we are handling the layout change internally to prevent
+        // the tabs-changed event listener from causing a conflicting re-render.
+        this.isInternalLayoutChange = true;
+        
+        // Apply the split to the layout structure
         this.paneLayout = splitNode(JSON.parse(JSON.stringify(this.paneLayout)));
 
-        this._pruneAndCompactLayout(); // Prune after splitting too
+        // Clean up any empty panes that might have been created
+        this._pruneAndCompactLayout();
         
-        this.emit('openTabRequested', { projectPath: project.path, fileId: draggedFileId });
+        // Immediately render the panes with the new layout
+        this.renderPanes({ openTabs: this.projectState.openTabs });
+
+        // Update the global state to make the new pane/tab active.
+        // The isInternalLayoutChange flag will prevent the event handler from running.
         this.emit('setActiveTabRequested', { fileId: draggedFileId });
+        
+        // Allow event-driven rendering again
+        this.isInternalLayoutChange = false;
+        // --- END OF FIX ---
     });
   }
 }
