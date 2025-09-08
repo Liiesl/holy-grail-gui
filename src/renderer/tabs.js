@@ -79,6 +79,47 @@ export class Tabs {
       }
     });
     
+    // Add drag and drop listeners for tabs
+    this.tabsList.addEventListener('dragstart', (e) => {
+      const tabEl = e.target.closest('.tab-item');
+      if (tabEl) {
+        const tabId = tabEl.dataset.tabId;
+        e.dataTransfer.setData('text/plain', tabId);
+        e.dataTransfer.effectAllowed = 'move';
+        // Add a slight delay to allow the drag image to be created before styling
+        setTimeout(() => tabEl.classList.add('dragging'), 0);
+      }
+    });
+
+    this.tabsList.addEventListener('dragend', (e) => {
+        this.tabsList.classList.remove('drag-over'); // Clean up
+        const tabEl = e.target.closest('.tab-item.dragging');
+        if (tabEl) {
+            tabEl.classList.remove('dragging');
+        }
+    });
+    
+    // NEW: Listeners to handle dropping a tab onto this tab list
+    this.tabsList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        this.tabsList.classList.add('drag-over');
+    });
+
+    this.tabsList.addEventListener('dragleave', () => {
+        this.tabsList.classList.remove('drag-over');
+    });
+
+    this.tabsList.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent the mainArea drop handler from catching this
+        this.tabsList.classList.remove('drag-over');
+        const draggedFileId = e.dataTransfer.getData('text/plain');
+        if (draggedFileId) {
+            this.emit('tabDropped', { fileId: draggedFileId });
+        }
+    });
+
     // Wire up action buttons
     this.chatToggleBtn.addEventListener('click', () => this.emit('chatToggled'));
     this.historyBtn.addEventListener('click', () => this.emit('historyClicked'));
@@ -86,7 +127,7 @@ export class Tabs {
   }
 
   /**
-   * NEW: Renders the entire component based on the provided state.
+   * Renders the entire component based on the provided state.
    * @param {{openTabs: Array, activeTabId: string}} state 
    */
   update({ openTabs, activeTabId }) {
@@ -95,6 +136,7 @@ export class Tabs {
     openTabs.forEach(tabData => {
         const tabEl = document.createElement('li');
         tabEl.className = 'tab-item';
+        tabEl.draggable = true; // Make the tab draggable
         if (tabData.fileId === activeTabId) {
             tabEl.classList.add('active');
         }

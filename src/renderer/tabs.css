@@ -24,6 +24,13 @@
     display: none;
 }
 
+/* NEW: Style for when a tab is being dragged over this list */
+.tabs-list.drag-over {
+    background-color: var(--color-hover);
+    outline: 2px dashed var(--color-primary);
+    outline-offset: -2px;
+}
+
 .tab-item {
     display: flex;
     align-items: center;
@@ -44,6 +51,11 @@
     background-color: var(--color-background);
     color: var(--color-text);
     border-bottom-color: transparent;
+}
+
+/* Style for tab being dragged */
+.tab-item.dragging {
+    opacity: 0.5;
 }
 
 .tab-title {

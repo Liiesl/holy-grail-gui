@@ -7,7 +7,7 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
 // Define the version of the settings structure your current code expects.
 // Increment this number whenever you make a breaking change to the settings/session format.
-const CURRENT_SETTINGS_VERSION = 'v0.1.26.2';
+const CURRENT_SETTINGS_VERSION = 'v0.1.26.5';
 
 /**
  * Reads the application settings from the user data directory.
