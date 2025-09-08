@@ -107,6 +107,11 @@ class App {
       this.updateSession();
     });
     
+    this.titlebar.container.addEventListener('chatToggle', () => {
+      document.getElementById('app-view').classList.toggle('chat-visible');
+      this.updateSession();
+    });
+
     this.titlebar.container.addEventListener('modeChange', (e) => {
       const mode = e.detail.mode;
       if (!this.getActiveEditor()) return;
@@ -132,25 +137,6 @@ class App {
     this.main.on('closeOtherTabsRequested', ({ fileId }) => this.projectState.closeOtherTabs(fileId));
     this.main.on('editorDirtyStateChanged', ({ fileId, isDirty }) => this.projectState.setTabDirty({ fileId, isDirty }));
     this.main.on('noteSavedInActivePane', ({ project, fileId }) => this.sidebar.setCurrentFile(project, fileId));
-    this.main.on('chatToggled', () => {
-      document.getElementById('app-view').classList.toggle('chat-visible');
-      this.updateSession();
-    });
-    this.main.on('historyClicked', () => {
-        if (this.getActiveEditor()) {
-            this.sidebar.showHistoryView();
-            this.titlebar.setActiveMode('pageHistory');
-        }
-    });
-    this.main.on('deleteClicked', async () => {
-        const editor = this.getActiveEditor();
-        if (editor) {
-            const { currentProject: project, currentFile: fileId } = editor;
-            const name = this.sidebar.getFileName(fileId);
-            const confirmed = confirm(`Are you sure you want to delete "${name || fileId}"? This action cannot be undone.`);
-            if (confirmed) await this.projectState.deleteNote(project.path, fileId);
-        }
-    });
     
     // --- Sidebar to App connections ---
     this.sidebar.on('fileSelected', async ({ project, file }) => {

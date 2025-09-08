@@ -87,44 +87,9 @@
     background-color: var(--color-active);
     color: var(--color-text);
 }
-
-.tab-actions {
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-}
-
-.tab-action-btn {
-    background: none;
-    border: none;
-    color: var(--color-secondary);
-    cursor: pointer;
-    font-size: 18px;
-    padding: 5px;
-    border-radius: 4px;
-    margin-left: 4px;
-}
-
-.tab-action-btn:hover:not(:disabled) {
-    background-color: var(--color-hover);
-    color: var(--color-text);
-}
-
-.tab-action-btn:disabled {
-    color: var(--color-border);
-    cursor: not-allowed;
-}
-
-.tab-action-btn.danger:hover:not(:disabled) {
-    color: var(--color-danger);
-}
 /* src/renderer/tabs.css */
 
 /* ... (existing content of tabs.css) ... */
-
-.tab-action-btn.danger:hover:not(:disabled) {
-    color: var(--color-danger);
-}
 
 /*
  * Styles for Drag-and-Drop Pane Splitting

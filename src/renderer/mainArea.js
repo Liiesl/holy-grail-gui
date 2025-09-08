@@ -82,10 +82,6 @@ export class Main {
     tabsInstance.on('tabDropped', ({ fileId }) => {
         this.handleTabMove(fileId, paneId);
     });
-
-    tabsInstance.on('chatToggled', () => this.emit('chatToggled'));
-    tabsInstance.on('historyClicked', () => this.emit('historyClicked'));
-    tabsInstance.on('deleteClicked', () => this.emit('deleteClicked'));
   }
 
   on(event, callback) {

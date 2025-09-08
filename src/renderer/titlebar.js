@@ -13,7 +13,6 @@ export class Titlebar {
     this.container.innerHTML = `
       <div class="titlebar-controls-left">
         <div class="titlebar-mode-switcher">
-          <!-- The wrapper is still useful for layout -->
           <div id="project-mode-wrapper">
             <button id="project-mode-btn" class="mode-btn active" data-mode="project" title="Project Explorer">
               <i class="fas fa-folder"></i>
@@ -26,13 +25,18 @@ export class Titlebar {
         </div>
       </div>
 
-      <div class="titlebar-controls-right">
+      <!-- Sidebar Toggle is now here, right after left controls -->
+      <div class="titlebar-controls-middle">
         <button id="sidebar-toggle-btn" class="titlebar-action-btn" title="Toggle Sidebar"><i class="fas fa-bars"></i></button>
       </div>
 
       <div class="titlebar-drag-region"></div>
 
-      <!-- THE CONTEXT MENU IS MOVED HERE - outside the clipping container -->
+      <!-- Chat Toggle is now inside the right controls wrapper for padding -->
+      <div class="titlebar-controls-right">
+        <button id="chat-toggle-btn" class="titlebar-action-btn" title="Toggle AI Chat">💬</button>
+      </div>
+      
       <ul id="project-context-menu"></ul>
     `;
     this.modeButtons = this.container.querySelectorAll('.titlebar-mode-switcher .mode-btn');
@@ -41,6 +45,7 @@ export class Titlebar {
     this.projectContextMenu = this.container.querySelector('#project-context-menu');
   }
 
+  // ... (the rest of the file remains the same)
   bindEvents() {
     // Mode switcher
     this.modeButtons.forEach(button => {
@@ -73,6 +78,11 @@ export class Titlebar {
       });
     });
 
+    // Chat toggle
+    this.container.querySelector('#chat-toggle-btn').addEventListener('click', () => {
+      this.container.dispatchEvent(new CustomEvent('chatToggle', { bubbles: true }));
+    });
+
     // Sidebar toggle
     this.container.querySelector('#sidebar-toggle-btn').addEventListener('click', () => {
       this.container.dispatchEvent(new CustomEvent('sidebarToggle', { bubbles: true }));
@@ -94,7 +104,7 @@ export class Titlebar {
         }
     }, true); // Use capture phase to catch it early
   }
-
+  
   toggleContextMenu() {
     this.isContextMenuVisible = !this.isContextMenuVisible;
 

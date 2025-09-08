@@ -27,18 +27,9 @@ export class Tabs {
     this.container.innerHTML = `
       <div class="tabs-container">
         <ul class="tabs-list"></ul>
-        <div class="tab-actions">
-            <button id="chat-toggle-btn" class="tab-action-btn" title="Toggle AI Chat">💬</button>
-            <button id="history-btn" class="tab-action-btn" title="View Page History">📜</button>
-            <button id="delete-note-btn" class="tab-action-btn danger" title="Delete Page">🗑️</button>
-        </div>
       </div>
     `;
     this.tabsList = this.container.querySelector('.tabs-list');
-    this.chatToggleBtn = this.container.querySelector('#chat-toggle-btn');
-    this.historyBtn = this.container.querySelector('#history-btn');
-    this.deleteNoteBtn = this.container.querySelector('#delete-note-btn');
-    this.updateActionButtons(null); // Initially disable buttons
   }
   
   addEventListeners() {
@@ -129,11 +120,6 @@ export class Tabs {
             this.emit('tabDropped', { fileId: draggedFileId });
         }
     });
-
-    // Wire up action buttons
-    this.chatToggleBtn.addEventListener('click', () => this.emit('chatToggled'));
-    this.historyBtn.addEventListener('click', () => this.emit('historyClicked'));
-    this.deleteNoteBtn.addEventListener('click', () => this.emit('deleteClicked'));
   }
 
   /**
@@ -160,16 +146,5 @@ export class Tabs {
         `;
         this.tabsList.appendChild(tabEl);
     });
-
-    this.updateActionButtons(activeTabId);
-  }
-
-  // All previous state-mutating methods have been removed:
-  // openTab, closeTab, setActiveTab, updateTabTitle, setTabDirty, getAllOpenTabs
-
-  updateActionButtons(activeTabId) {
-    const isTabActive = !!activeTabId;
-    this.historyBtn.disabled = !isTabActive;
-    this.deleteNoteBtn.disabled = !isTabActive;
   }
 }

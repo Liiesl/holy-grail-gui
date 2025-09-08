@@ -2,7 +2,7 @@
 
 #app-titlebar {
     display: flex;
-    justify-content: space-between;
+    /* justify-content: space-between; <-- REMOVED */
     align-items: center;
     height: 40px;
     background-color: var(--color-surface-alt);
@@ -17,13 +17,18 @@
     -webkit-app-region: drag;
 }
 
-.titlebar-controls-left, .titlebar-controls-right {
+.titlebar-controls-left, .titlebar-controls-right, .titlebar-controls-middle {
     display: flex;
     align-items: center;
     height: 100%;
     padding: 0 8px;
     -webkit-app-region: no-drag;
     flex-shrink: 0;
+}
+
+.titlebar-controls-right {
+    gap: 4px;
+    margin-right: 140px;
 }
 
 .titlebar-controls-left {
@@ -177,7 +182,7 @@
 }
 
 
-/* Right-side action button (sidebar toggle) */
+/* Right-side action button (sidebar toggle and others) */
 .titlebar-action-btn {
     width: 32px;
     height: 24px;
@@ -191,6 +196,8 @@
     align-items: center;
     justify-content: center;
     transition: background-color 0.2s ease-in-out;
+    -webkit-app-region: no-drag; /* Ensure buttons are clickable */
+    flex-shrink: 0; /* Prevent buttons from shrinking */
 }
 
 .titlebar-action-btn:hover {
