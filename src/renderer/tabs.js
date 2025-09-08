@@ -42,10 +42,19 @@ export class Tabs {
   }
   
   addEventListeners() {
-    this.tabsList.addEventListener('click', (e) => {
+    // --- START OF FIX ---
+    // We use 'mousedown' instead of 'click' to ensure this event fires before
+    // the parent pane's focus listener. By stopping propagation, we prevent the
+    // pane from re-rendering before the tab action (close or activate) is processed.
+    // This fixes the bug where closing a tab in an inactive pane required two clicks.
+    this.tabsList.addEventListener('mousedown', (e) => {
         const tabEl = e.target.closest('.tab-item');
         if (!tabEl) return;
         
+        // This is the key to the fix: we handle the event here and prevent it
+        // from bubbling up to the mainArea's pane focus listener.
+        e.stopPropagation();
+
         const tabId = tabEl.dataset.tabId;
 
         if (e.target.classList.contains('close-tab')) {
@@ -54,6 +63,7 @@ export class Tabs {
             this.emit('setActiveTabRequested', { fileId: tabId });
         }
     });
+    // --- END OF FIX ---
 
     // 2. Add the context menu event listener
     this.tabsList.addEventListener('contextmenu', (e) => {
