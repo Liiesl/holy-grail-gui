@@ -6,9 +6,10 @@
  * and re-renders the file tree whenever the underlying data is modified.
  */
 export class ProjectView {
-  constructor(projectState, container) {
+  constructor(projectState, container, contextMenuService) {
     this.projectState = projectState;
     this.container = container;
+    this.contextMenuService = contextMenuService; // <-- Store the service
     this.currentProject = null;
     this.currentFile = null; // Stores the note's unique ID
     this.isEditorDirty = false;
@@ -20,8 +21,6 @@ export class ProjectView {
     this.initElements();
     this.addEventListeners();
     this.bindStateListeners(); // Listen for changes from the source of truth
-
-    this.closeContextMenu = this.closeContextMenu.bind(this);
   }
 
   on(event, callback) {
@@ -179,9 +178,6 @@ export class ProjectView {
         </div>
         <div class="file-item-actions">
             <button class="file-action-btn add-child-btn" title="New sub-page">+</button>
-            <button class="file-action-btn meatball-btn" title="More options">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M8 3C8.82843 3 9.5 2.32843 9.5 1.5C9.5 0.671573 8.82843 0 8 0C7.17157 0 6.5 0.671573 6.5 1.5C6.5 2.32843 7.17157 3 8 3ZM8 8C8.82843 8 9.5 7.32843 9.5 6.5C9.5 5.67157 8.82843 5 8 5C7.17157 5 6.5 5.67157 6.5 6.5C6.5 7.32843 7.17157 8 8 8ZM8 13C8.82843 13 9.5 12.3284 9.5 11.5C9.5 10.6716 8.82843 10 8 10C7.17157 10 6.5 10.6716 6.5 11.5C6.5 12.3284 7.17157 13 8 13Z"/></svg>
-            </button>
         </div>
       </div>
       ${hasChildren ? '<ul class="nested-notes collapsed"></ul>' : ''}
@@ -203,10 +199,12 @@ export class ProjectView {
         this.beginCreateNewNote(note.id);
     });
 
-    const meatballBtn = li.querySelector('.meatball-btn');
-    meatballBtn.addEventListener('click', (e) => {
+    // Attach context menu listener for right-click
+    const container = li.querySelector('.file-item-container');
+    container.addEventListener('contextmenu', (e) => {
         e.stopPropagation();
-        this.showContextMenu(e, note.id);
+        e.preventDefault();
+        this.showContextMenu(e.clientX, e.clientY, note.id);
     });
 
     return li;
@@ -261,89 +259,27 @@ export class ProjectView {
   }
   
   // --- Context Menu and In-Place Editing methods from here down ---
-  // These methods are largely unchanged as they manage local UI state
-  // and emit events, which is consistent with the new architecture.
-
-  closeContextMenu() {
-    const existingMenu = document.querySelector('.context-menu');
-    if (existingMenu) {
-        existingMenu.remove();
-    }
-    document.removeEventListener('click', this.closeContextMenu);
-    document.removeEventListener('contextmenu', this.closeContextMenu);
-  }
-
-  showContextMenu(event, noteId) {
-      this.closeContextMenu(); // Close any existing menus
-
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.innerHTML = `
-          <ul>
-              <li class="context-menu-item" data-action="rename">Rename</li>
-              <li class="context-menu-item" data-action="duplicate">Duplicate</li>
-              <li class="context-menu-item" data-action="delete">Delete</li>
-              <div class="context-menu-divider"></div>
-              <li class="context-menu-item" data-action="open-right">Open to the Right</li>
-              <li class="context-menu-item" data-action="change-icon">Change Icon</li>
-              <li class="context-menu-item" data-action="open-new-tab">Open in New Tab</li>
-              <li class="context-menu-item" data-action="show-in-explorer">Show in System Explorer</li>
-          </ul>
-      `;
-
-      document.body.appendChild(menu);
-
-      const rect = event.currentTarget.getBoundingClientRect();
-      menu.style.top = `${rect.bottom}px`;
-      menu.style.left = `${rect.left}px`;
-      
-      if (menu.offsetLeft + menu.offsetWidth > window.innerWidth) {
-          menu.style.left = `${window.innerWidth - menu.offsetWidth - 5}px`;
-      }
-      if (menu.offsetTop + menu.offsetHeight > window.innerHeight) {
-          menu.style.top = `${window.innerHeight - menu.offsetHeight - 5}px`;
-      }
-
-      menu.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const target = e.target.closest('.context-menu-item');
-          if (target) {
-              const action = target.getAttribute('data-action');
-              this.handleContextMenuAction(action, noteId);
-              this.closeContextMenu();
-          }
-      });
-      
-      setTimeout(() => {
-          document.addEventListener('click', this.closeContextMenu);
-          document.addEventListener('contextmenu', this.closeContextMenu);
-      }, 0);
-  }
   
-  handleContextMenuAction(action, noteId) {
-      switch (action) {
-          case 'delete':
-              {
-                const li = this.fileTree.querySelector(`li[data-note-id="${noteId}"]`);
-                if (!li) return;
-                const name = li.querySelector('.file-item-name').textContent.replace(/\s*\*$/, '');
-                this.emit('deleteNoteRequested', { project: this.currentProject, file: noteId, name: name });
-              }
-              break;
-          case 'rename':
-              this.beginRenameNote(noteId);
-              break;
-          case 'duplicate':
-          case 'open-right':
-          case 'change-icon':
-          case 'open-new-tab':
-          case 'show-in-explorer':
-              // These are placeholders for now.
-              alert(`Action '${action}' on page with ID '${noteId}' is not yet implemented.`);
-              break;
-          default:
-              console.log(`Unknown action: ${action}`);
-      }
+  showContextMenu(x, y, noteId) {
+    const items = [
+        { label: 'Rename', callback: () => this.beginRenameNote(noteId) },
+        { 
+          label: 'Delete', 
+          callback: () => {
+              const li = this.fileTree.querySelector(`li[data-note-id="${noteId}"]`);
+              if (!li) return;
+              const name = li.querySelector('.file-item-name').textContent.replace(/\s*\*$/, '');
+              this.emit('deleteNoteRequested', { project: this.currentProject, file: noteId, name: name });
+          }
+        },
+        { type: 'separator' },
+        { label: 'Duplicate', disabled: true },
+        { label: 'Open to the Right', disabled: true },
+        { label: 'Change Icon', disabled: true },
+        { label: 'Open in New Tab', disabled: true },
+        { label: 'Show in System Explorer', disabled: true },
+    ];
+    this.contextMenuService.show(x, y, items);
   }
 
   // --- METHODS FOR IN-PLACE EDITING ---

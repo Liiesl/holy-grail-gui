@@ -43,8 +43,8 @@ export class Sidebar {
   }
 
   initViews() {
-    // Pass the state service down to the project view
-    this.projectView = new ProjectView(this.projectState, this.projectViewContainer);
+    // Pass the state service AND context menu service down to the project view
+    this.projectView = new ProjectView(this.projectState, this.projectViewContainer, this.contextMenuService);
     this.historyView = new HistoryView(this.projectState, this.historyViewContainer);
   }
 
