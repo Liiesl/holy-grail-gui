@@ -1,8 +1,8 @@
 // src/main/index.js
-const { app, BrowserWindow, ipcMain, dialog } = require('electron'); // Added dialog
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipcHandlers');
-const { readSettings, saveSettings } = require('./settings'); // Added this line
+const { readSettings, saveSettings } = require('./settings');
 const { autoUpdater } = require('electron-updater'); // Added for auto-updates
 const log = require('electron-log'); // Recommended for electron-updater logging
 const projectManager = require('./projectManager'); // Import projectManager
@@ -11,6 +11,9 @@ let mainWindow;
 let sessionRef = { current: {} }; // Use a reference object to hold renderer state
 let isAutoUpdateCheck = false; // Flag to differentiate auto vs manual update checks
 let availableUpdate = null; // To hold update info if download is not automatic
+
+// Define the current settings version, mirroring the one in settings.js
+const CURRENT_SETTINGS_VERSION = 'v0.1.26.2';
 
 // --- AutoUpdater Configuration & Logging ---
 autoUpdater.logger = log;
@@ -100,9 +103,58 @@ autoUpdater.on('update-downloaded', async (info) => {
     });
 });
 
+/**
+ * Compares two version strings (e.g., 'v1.2.3' or '1.2.3.4').
+ * @param {string} v1 - The first version string.
+ * @param {string} v2 - The second version string.
+ * @returns {number} - 1 if v1 > v2, -1 if v1 < v2, 0 if v1 === v2.
+ */
+function compareVersions(v1, v2) {
+  const parts1 = v1.replace('v', '').split('.').map(Number);
+  const parts2 = v2.replace('v', '').split('.').map(Number);
+  const len = Math.max(parts1.length, parts2.length);
+
+  for (let i = 0; i < len; i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+  }
+  return 0;
+}
+
+
+/**
+ * A new function to handle settings migration.
+ * This keeps the startup logic clean.
+ */
+async function handleMigrations() {
+  let settings = await readSettings();
+
+  // If the saved version is older than what the app expects, migrate.
+  if (compareVersions(settings.settingsVersion, CURRENT_SETTINGS_VERSION) < 0) {
+    console.log(`Upgrading settings format from ${settings.settingsVersion} to ${CURRENT_SETTINGS_VERSION}.`);
+
+    // --- MIGRATION LOGIC ---
+    if (compareVersions(settings.settingsVersion, 'v0.1.26.2') < 0) {
+      // Migrating from a version before v0.1.26.2
+      console.log('Applying migration for versions before v0.1.26.2: Clearing incompatible session data.');
+      settings.session = null;
+    }
+
+    // After migration, update the version number and save.
+    settings.settingsVersion = CURRENT_SETTINGS_VERSION;
+    await saveSettings(settings);
+    console.log('Settings migration complete.');
+  }
+
+  return settings; // Return the (potentially migrated) settings
+}
+
 
 async function createWindow() {
-  const settings = await readSettings();
+  // Instead of reading settings directly, run the migration handler first.
+  const settings = await handleMigrations();
   const session = settings.session || {};
 
   mainWindow = new BrowserWindow({
@@ -178,17 +230,16 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Pre-load last known session data
+  // The migration is now handled inside createWindow,
+  // but we still need the pre-load for the sessionRef.
   const settings = await readSettings();
   if (settings.session) {
       const { windowBounds, ...rendererSession } = settings.session;
       sessionRef.current = rendererSession;
   }
-  // Register all IPC handlers for the application
+  
   registerIpcHandlers(sessionRef);
 
-  // --- NEW: Build search index on startup ---
-  // This is done in the background and does not block window creation.
   projectManager.buildAllIndices().catch(err => {
     console.error("Failed to build search index on startup:", err);
   });

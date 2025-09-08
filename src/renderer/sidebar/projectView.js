@@ -2,25 +2,28 @@
 
 /**
  * Manages the Project/File Explorer view in the sidebar.
+ * This view is "state-driven". It listens for changes from the ProjectStateService
+ * and re-renders the file tree whenever the underlying data is modified.
  */
 export class ProjectView {
-  constructor(projectManager, container) {
-    this.projectManager = projectManager;
+  constructor(projectState, container) {
+    this.projectState = projectState;
     this.container = container;
     this.currentProject = null;
-    this.currentFile = null; // Will now store the note's unique ID
+    this.currentFile = null; // Stores the note's unique ID
     this.isEditorDirty = false;
     this.listeners = {};
     this.creatingWithParentId = null; // To store parentId during creation
-    this.notes = []; // NEW: To store the raw note data for easy lookup
+    this.notes = []; // A local cache of the raw note data for easy lookup
 
     this.render();
     this.initElements();
     this.addEventListeners();
+    this.bindStateListeners(); // Listen for changes from the source of truth
 
     this.closeContextMenu = this.closeContextMenu.bind(this);
   }
-  
+
   on(event, callback) {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(callback);
@@ -30,6 +33,18 @@ export class ProjectView {
     if (this.listeners[event]) {
       this.listeners[event].forEach(callback => callback(data));
     }
+  }
+  
+  /**
+   * Subscribes to events from the central state service.
+   */
+  bindStateListeners() {
+      this.projectState.on('notes-changed', ({ projectPath, notes }) => {
+          // If the notes for the currently displayed project have changed, re-render the tree.
+          if (this.currentProject && this.currentProject.path === projectPath) {
+              this.renderNotes(notes);
+          }
+      });
   }
 
   render() {
@@ -58,7 +73,7 @@ export class ProjectView {
   addEventListeners() {
     this.newPageBtn.addEventListener('click', () => {
       if (!this.currentProject) return;
-      this.beginCreateNewNote(); // This will create a root-level page
+      this.beginCreateNewNote(); // Creates a root-level page
     });
 
     this.searchInput.addEventListener('click', (e) => {
@@ -67,9 +82,16 @@ export class ProjectView {
     });
   }
 
+  /**
+   * Called by the Sidebar to display a new project.
+   * This method ensures the note data is loaded from the state service.
+   * The actual rendering is handled by the `notes-changed` listener.
+   * @param {object|null} project 
+   */
   async load(project) {
     this.currentProject = project;
     this.currentFile = null; // Reset file selection
+    
     if (!this.currentProject) {
       this.fileTree.innerHTML = '<li>Select a project to see pages.</li>';
       this.notes = []; // Clear the notes cache
@@ -77,9 +99,21 @@ export class ProjectView {
     }
 
     this.fileTree.innerHTML = '<li>Loading...</li>';
-    const notes = await this.projectManager.getNotes(this.currentProject.path);
-    this.notes = notes; // Store the notes data
-    this.fileTree.innerHTML = ''; // Clear
+    
+    // Ask the state service to load the notes. If they are already cached,
+    // it won't perform a network request. This will trigger the `notes-changed`
+    // event, which will in turn call `renderNotes`.
+    await this.projectState.loadNotesForProject(this.currentProject.path);
+  }
+
+  /**
+   * Renders the visual file tree from a list of note objects.
+   * This is called by the `notes-changed` event listener.
+   * @param {Array} notes - The array of note objects for the current project.
+   */
+  renderNotes(notes) {
+    this.notes = notes; // Update the local cache for getFileName()
+    this.fileTree.innerHTML = ''; // Clear current tree
 
     if (notes.length === 0) {
         this.fileTree.innerHTML = '<li class="info-message">No pages in this project. Click "+ New Page" to create one.</li>';
@@ -106,7 +140,7 @@ export class ProjectView {
   }
 
   /**
-   * NEW: Finds the name of a note by its ID from the cached list.
+   * Finds the name of a note by its ID from the cached list.
    * @param {string} noteId The unique ID of the note.
    * @returns {string|null} The name of the note or null if not found.
    */
@@ -119,7 +153,6 @@ export class ProjectView {
     notes.sort((a, b) => a.name.localeCompare(b.name));
     notes.forEach(note => {
       if (note.children.length > 0) {
-        // Sort children recursively
         note.children.sort((a, b) => a.name.localeCompare(b.name));
       }
       const li = this.createNoteElement(note);
@@ -167,7 +200,7 @@ export class ProjectView {
     const addChildBtn = li.querySelector('.add-child-btn');
     addChildBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.beginCreateNewNote(note.id); // Pass the current note's ID as the parent
+        this.beginCreateNewNote(note.id);
     });
 
     const meatballBtn = li.querySelector('.meatball-btn');
@@ -194,7 +227,6 @@ export class ProjectView {
 
   selectNote(noteId) {
     if (this.currentFile === noteId) return;
-    this.currentFile = noteId;
     this.emit('fileSelected', { project: this.currentProject, file: noteId });
   }
   
@@ -214,20 +246,23 @@ export class ProjectView {
       const nameSpan = li.querySelector('.file-item-name');
       if (!noteId || !nameSpan) return; 
 
-      const originalName = nameSpan.textContent.replace(/\s*\*$/, ''); // More robust regex
       const isActive = noteId === this.currentFile;
-
       li.classList.toggle('active', isActive);
+      
+      const note = this.notes.find(n => n.id === noteId);
+      const originalName = note ? note.name : nameSpan.textContent.replace(/\s*\*$/, '');
 
       if (isActive && this.isEditorDirty) {
-        if (!nameSpan.textContent.endsWith(' *')) {
-            nameSpan.textContent = `${originalName} *`;
-        }
+        nameSpan.textContent = `${originalName} *`;
       } else {
         nameSpan.textContent = originalName;
       }
     });
   }
+  
+  // --- Context Menu and In-Place Editing methods from here down ---
+  // These methods are largely unchanged as they manage local UI state
+  // and emit events, which is consistent with the new architecture.
 
   closeContextMenu() {
     const existingMenu = document.querySelector('.context-menu');

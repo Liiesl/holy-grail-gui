@@ -24,7 +24,7 @@
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    display: flex !important;
+    display: flex; /* <-- FIXED: !important removed */
     flex-direction: column !important;
     min-height: 0 !important;
 }
@@ -36,7 +36,7 @@
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    display: flex !important;
+    display: flex; /* <-- FIXED: !important removed */
     align-items: center;
     justify-content: center;
     color: var(--color-secondary, #8e8e93);

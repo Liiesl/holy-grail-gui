@@ -5,9 +5,8 @@ export class Tabs {
   constructor(container, contextMenuService) {
     this.container = container;
     this.contextMenuService = contextMenuService; // Store the service
-    this.tabs = new Map();
-    this.activeTabId = null;
     this.listeners = {};
+    // REMOVED state properties: this.tabs, this.activeTabId
     this.render();
     this.addEventListeners();
   }
@@ -39,7 +38,7 @@ export class Tabs {
     this.chatToggleBtn = this.container.querySelector('#chat-toggle-btn');
     this.historyBtn = this.container.querySelector('#history-btn');
     this.deleteNoteBtn = this.container.querySelector('#delete-note-btn');
-    this.updateActionButtons(); // Initially disable buttons
+    this.updateActionButtons(null); // Initially disable buttons
   }
   
   addEventListeners() {
@@ -52,7 +51,7 @@ export class Tabs {
         if (e.target.classList.contains('close-tab')) {
             this.emit('tabCloseRequested', { fileId: tabId });
         } else {
-            this.setActiveTab(tabId);
+            this.emit('setActiveTabRequested', { fileId: tabId });
         }
     });
 
@@ -62,6 +61,8 @@ export class Tabs {
       if (tabEl) {
         e.preventDefault();
         const tabId = tabEl.dataset.tabId;
+        const totalTabs = this.tabsList.childElementCount;
+
         const menuItems = [
           {
             label: 'Close Tab',
@@ -69,14 +70,8 @@ export class Tabs {
           },
           {
             label: 'Close Other Tabs',
-            disabled: this.tabs.size <= 1,
-            callback: () => {
-              this.tabs.forEach((_, fileId) => {
-                if (fileId !== tabId) {
-                  this.emit('tabCloseRequested', { fileId });
-                }
-              });
-            }
+            disabled: totalTabs <= 1,
+            callback: () => this.emit('closeOtherTabsRequested', { fileId: tabId })
           }
         ];
 
@@ -90,87 +85,38 @@ export class Tabs {
     this.deleteNoteBtn.addEventListener('click', () => this.emit('deleteClicked'));
   }
 
-  openTab(tabData) {
-    if (!this.tabs.has(tabData.fileId)) {
-      this.tabs.set(tabData.fileId, tabData);
-      const tabEl = document.createElement('li');
-      tabEl.className = 'tab-item';
-      tabEl.dataset.tabId = tabData.fileId;
-      tabEl.innerHTML = `
-        <span class="tab-title">${tabData.title}</span>
-        <button class="close-tab">&times;</button>
-      `;
-      this.tabsList.appendChild(tabEl);
-    }
-    
-    this.setActiveTab(tabData.fileId);
+  /**
+   * NEW: Renders the entire component based on the provided state.
+   * @param {{openTabs: Array, activeTabId: string}} state 
+   */
+  update({ openTabs, activeTabId }) {
+    this.tabsList.innerHTML = ''; // Clear existing tabs
+
+    openTabs.forEach(tabData => {
+        const tabEl = document.createElement('li');
+        tabEl.className = 'tab-item';
+        if (tabData.fileId === activeTabId) {
+            tabEl.classList.add('active');
+        }
+        if (tabData.isDirty) {
+            tabEl.classList.add('dirty');
+        }
+        tabEl.dataset.tabId = tabData.fileId;
+        tabEl.innerHTML = `
+            <span class="tab-title">${tabData.title}</span>
+            <button class="close-tab">&times;</button>
+        `;
+        this.tabsList.appendChild(tabEl);
+    });
+
+    this.updateActionButtons(activeTabId);
   }
 
-  closeTab(fileId) {
-    if (!this.tabs.has(fileId)) return;
+  // All previous state-mutating methods have been removed:
+  // openTab, closeTab, setActiveTab, updateTabTitle, setTabDirty, getAllOpenTabs
 
-    const wasActive = this.activeTabId === fileId;
-
-    this.tabs.delete(fileId);
-    const tabEl = this.tabsList.querySelector(`.tab-item[data-tab-id="${fileId}"]`);
-    if (tabEl) {
-        tabEl.remove();
-    }
-    
-    if (wasActive) {
-        // The closed tab was active, so we need to select a new one.
-        // A simple strategy: select the last tab in the list.
-        const remainingTabIds = Array.from(this.tabs.keys());
-        const newActiveId = remainingTabIds.length > 0 ? remainingTabIds[remainingTabIds.length - 1] : null;
-        this.setActiveTab(newActiveId);
-    }
-    // If the closed tab was not active, the active tab remains the same, so no further action is needed.
-  }
-  
-  setActiveTab(fileId) {
-    if (this.activeTabId === fileId) return;
-
-    // Deactivate old tab
-    if (this.activeTabId) {
-      const oldTab = this.tabsList.querySelector(`.tab-item[data-tab-id="${this.activeTabId}"]`);
-      if (oldTab) oldTab.classList.remove('active');
-    }
-
-    // Activate new tab
-    const newTab = this.tabsList.querySelector(`.tab-item[data-tab-id="${fileId}"]`);
-    if (newTab) {
-      newTab.classList.add('active');
-      this.activeTabId = fileId;
-    } else {
-      this.activeTabId = null; // No tab is active if it doesn't exist
-    }
-
-    this.updateActionButtons();
-    
-    // Notify listeners that the active tab has changed.
-    this.emit('activeTabChanged', { activeTabId: this.activeTabId });
-  }
-
-  updateTabTitle(fileId, newTitle) {
-      const tabData = this.tabs.get(fileId);
-      if (tabData) {
-          tabData.title = newTitle;
-          const tabEl = this.tabsList.querySelector(`.tab-item[data-tab-id="${fileId}"] .tab-title`);
-          if (tabEl) {
-              tabEl.textContent = newTitle;
-          }
-      }
-  }
-  
-  setTabDirty(fileId, isDirty) {
-    const tabEl = this.tabsList.querySelector(`.tab-item[data-tab-id="${fileId}"]`);
-    if (tabEl) {
-      tabEl.classList.toggle('dirty', isDirty);
-    }
-  }
-
-  updateActionButtons() {
-    const isTabActive = !!this.activeTabId;
+  updateActionButtons(activeTabId) {
+    const isTabActive = !!activeTabId;
     this.historyBtn.disabled = !isTabActive;
     this.deleteNoteBtn.disabled = !isTabActive;
   }

@@ -2,15 +2,20 @@
 import { ProjectView } from './projectView.js';
 import { HistoryView } from './versionControl.js'; 
 
+/**
+ * Manages the sidebar container, switching between the Project and History views.
+ * It does not hold project state itself, but orchestrates its child views based on
+ * instructions from App.js and events from the ProjectStateService.
+ */
 export class Sidebar {
-  // 1. Accept the service in the constructor
-  constructor(projectManager, container, contextMenuService) {
-    this.projectManager = projectManager;
+  constructor(projectState, container, contextMenuService) {
+    this.projectState = projectState;
     this.container = container;
-    this.contextMenuService = contextMenuService; // Store the service
-    this.currentProject = null;
+    this.contextMenuService = contextMenuService; // Used by child views if needed
+    
+    // The sidebar still needs to know the current file for switching to history view
     this.currentFile = null;
-    this.projects = [];
+    
     this.listeners = {};
 
     this.render();
@@ -38,48 +43,26 @@ export class Sidebar {
   }
 
   initViews() {
-    this.projectView = new ProjectView(this.projectManager, this.projectViewContainer);
-    this.historyView = new HistoryView(this.projectManager, this.historyViewContainer);
+    // Pass the state service down to the project view
+    this.projectView = new ProjectView(this.projectState, this.projectViewContainer);
+    this.historyView = new HistoryView(this.projectState, this.historyViewContainer);
   }
 
   addEventListeners() {
     this.settingsBtn.addEventListener('click', () => this.emit('settingsClicked'));
     
-    // Bubble up events from child views
+    // Bubble up events from child views for App.js to handle.
+    // The sidebar's role is simply to pass them along.
     this.projectView.on('fileSelected', (data) => {
         this.setCurrentFile(data.project, data.file);
-        this.emit('fileSelected', data)
+        this.emit('fileSelected', data);
     });
-    this.projectView.on('newNoteClicked', (data) => this.emit('newNoteClicked', data));
-    // The 'deleteNoteRequested' event will now be triggered by the context menu
+    
     this.projectView.on('createNote', (data) => this.emit('createNote', data));
     this.projectView.on('renameNote', (data) => this.emit('renameNote', data));
+    this.projectView.on('deleteNoteRequested', (data) => this.emit('deleteNoteRequested', data));
     this.projectView.on('searchInitiated', (data) => this.emit('searchInitiated', data));
     this.historyView.on('versionSelected', (data) => this.emit('versionSelected', data));
-
-    // 2. Add the context menu event listener
-    this.container.addEventListener('contextmenu', (e) => {
-      const fileEl = e.target.closest('.file-tree-item[data-id]');
-      if (fileEl) {
-        e.preventDefault();
-        const project = this.currentProject;
-        const fileId = fileEl.dataset.id;
-        const fileName = this.getFileName(fileId);
-
-        const menuItems = [
-          {
-            label: 'Rename Page',
-            callback: () => this.projectView.promptRename(project, fileId, fileName)
-          },
-          {
-            label: 'Delete Page',
-            callback: () => this.emit('deleteNoteRequested', { project, file: fileId })
-          }
-        ];
-        
-        this.contextMenuService.show(e.clientX, e.clientY, menuItems);
-      }
-    });
   }
 
   on(event, callback) {
@@ -94,7 +77,7 @@ export class Sidebar {
   }
 
   /**
-   * NEW: Passthrough method to get a file name from the ProjectView.
+   * Passthrough method to get a file name from the ProjectView's cached notes list.
    * @param {string} noteId The unique ID of the note.
    * @returns {string|null}
    */
@@ -102,58 +85,70 @@ export class Sidebar {
     return this.projectView.getFileName(noteId);
   }
 
-  async loadProjects() {
-    this.projects = await this.projectManager.getProjects();
-    this.projectView.load(null); // Clear project view
-  }
-
-  // Called by App.js when a project is selected in the titlebar
+  /**
+   * Called by App.js when the active project changes. 
+   * This method simply instructs the projectView to render the new project.
+   * @param {object|null} project The project object from the state service, or null.
+   */
   async displayProject(project) {
-    if (this.currentProject?.path === project?.path) return;
-    
-    this.currentProject = project;
     this.setCurrentFile(project, null); // Deselect any open file from old project
-    // await is important here to ensure the file list is loaded before we might need it
+    // Tell the project view to load and render the notes for this project.
+    // The projectView itself will get the note data from the projectState service.
     await this.projectView.load(project);
-    
-    // Let App.js know to update the editor, etc.
-    this.emit('projectSelected', project);
   }
 
   showProjectView() {
     this.projectViewContainer.classList.remove('hidden');
     this.historyViewContainer.classList.add('hidden');
-    // When returning to file view, tell editor to exit read-only mode if it was in it
+    // Tell the editor to exit read-only mode if it was in it
     this.emit('backToNotes');
   }
 
   showHistoryView() {
-    if (!this.currentFile) return;
+    const activeProject = this.projectState.activeProject;
+    if (!activeProject || !this.currentFile) return;
+    
     this.projectViewContainer.classList.add('hidden');
     this.historyViewContainer.classList.remove('hidden');
-    this.historyView.load(this.currentProject, this.currentFile);
+    this.historyView.load(activeProject, this.currentFile);
   }
 
-  setCurrentFile(project, file) {
-    this.currentProject = project;
-    this.currentFile = file;
-    this.projectView.setCurrentFile(file);
+  /**
+   * Updates the sidebar's internal tracking of the currently selected file.
+   * This is necessary for knowing which file's history to show.
+   * @param {object|null} project The currently active project.
+   * @param {string|null} fileId The ID of the selected file.
+   */
+  setCurrentFile(project, fileId) {
+    this.currentFile = fileId;
+    this.projectView.setCurrentFile(fileId); // Tell the view to update its UI (e.g., highlight)
     
-    // Emit an event so the App can tell the Titlebar to enable/disable history
-    this.emit('currentFileChanged', { hasFile: !!file });
+    // Notify App.js so it can enable/disable the history button in the titlebar.
+    this.emit('currentFileChanged', { hasFile: !!fileId });
 
-    if (!file) {
+    if (!fileId) {
       this.historyView.clear();
     }
   }
   
+  /**
+   * Passthrough method to notify the project view that the active editor's
+   * content has changed, so it can update the UI (e.g., show a dirty indicator '*').
+   * @param {boolean} isDirty 
+   */
   setEditorDirty(isDirty) {
     this.projectView.setEditorDirty(isDirty);
   }
 
+  /**
+   * Instructs the project view to re-render its file tree. This is useful
+   * after operations like creating or deleting notes.
+   */
   refreshFileTree() {
-    if (this.currentProject) {
-        this.projectView.load(this.currentProject);
+    const activeProject = this.projectState.activeProject;
+    if (activeProject) {
+        // The `load` method will fetch the latest notes from the service and re-render.
+        this.projectView.load(activeProject);
     }
   }
 }

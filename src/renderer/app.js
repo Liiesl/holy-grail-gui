@@ -1,7 +1,8 @@
 // src/renderer/app.js
 
 import { Hgmd } from './editor/hgmd.js';
-import { ProjectManager } from './project.js';
+// 1. Import the new state service
+import { ProjectStateService } from './project.js';
 import { Sidebar } from './sidebar/sidebar.js';
 import { Editor } from './editor/editor.js';
 import { Settings } from './settings.js';
@@ -13,15 +14,24 @@ import { ContextMenuService } from './context-menu.js'; // 1. Import the new ser
 
 class App {
   constructor() {
-    this.editors = new Map(); // fileId -> { editor, container, project }
-    this.activeFileId = null;
+    this.editors = new Map();
+    // REMOVED: this.activeFileId = null;
 
     this.renderLayout();
+    // 2. Instantiate the service FIRST, as it's the source of truth
+    this.projectState = new ProjectStateService(); 
     this.initServices();
     this.initComponents();
     this.connectComponents();
+    // 3. Add a new step to bind to state changes
+    this.bindStateListeners(); 
     this.start();
     this.handleEscKey = this.handleEscKey.bind(this);
+  }
+
+  // Helper getter for convenience
+  get activeFileId() {
+    return this.projectState.activeTabId;
   }
 
   renderLayout() {
@@ -47,8 +57,7 @@ class App {
 
   initServices() {
     this.hgmd = new Hgmd();
-    this.projectManager = new ProjectManager();
-    // 3. Instantiate the service
+    // this.projectManager is now this.projectState
     const contextMenuContainer = document.getElementById('context-menu-container');
     this.contextMenuService = new ContextMenuService(contextMenuContainer);
   }
@@ -65,27 +74,66 @@ class App {
     this.welcomeMessageEl = document.getElementById('welcome-message');
 
     this.titlebar = new Titlebar(titlebarContainer);
-    // 4. Pass the service to components that need it
-    this.sidebar = new Sidebar(this.projectManager, sidebarContainer, this.contextMenuService);
+    // 4. Pass the new service to components that need it
+    // The Editor and SearchModal also need it to perform actions
+    this.sidebar = new Sidebar(this.projectState, sidebarContainer, this.contextMenuService); 
     this.tabs = new Tabs(tabsContainer, this.contextMenuService);
     this.settings = new Settings(settingsContainer);
     this.chat = new Chat(chatContainer);
-    this.searchModal = new SearchModal(this.projectManager, searchContainer);
+    this.searchModal = new SearchModal(this.projectState, searchContainer);
   }
 
   // Helper to get the currently active editor instance
   getActiveEditor() {
     return this.activeFileId ? this.editors.get(this.activeFileId)?.editor : null;
   }
+  // 5. NEW: A dedicated place for reacting to state changes
+  bindStateListeners() {
+    this.projectState.on('projects-changed', ({ projects }) => {
+        const currentPath = this.projectState.activeProject?.path;
+        this.titlebar.updateProjectList(projects, currentPath);
+    });
+
+    this.projectState.on('active-project-changed', ({ project }) => {
+        this.sidebar.displayProject(project);
+        this.titlebar.setCurrentProjectName(project?.name);
+        this.titlebar.updateProjectList(this.projectState.projects, project?.path);
+    });
+
+    // The logic for closing tabs when a project/note is removed is now handled
+    // internally by the ProjectStateService. This component just needs to react
+    // to the final `tabs-changed` event.
+
+    // NEW: The primary driver for UI updates related to tabs and editors.
+    this.projectState.on('tabs-changed', ({ openTabs, activeTabId }) => {
+        // 1. Update the visual tabs component
+        this.tabs.update({ openTabs, activeTabId });
+
+        // 2. Update the visible editor pane
+        this.setActiveEditor(activeTabId);
+
+        // 3. Clean up any editor instances that are no longer needed
+        const openFileIds = new Set(openTabs.map(t => t.fileId));
+        for (const fileId of this.editors.keys()) {
+            if (!openFileIds.has(fileId)) {
+                const instance = this.editors.get(fileId);
+                instance.container.remove();
+                this.editors.delete(fileId);
+            }
+        }
+    });
+  }
+
 
   connectComponents() {
+    // ... connections for titlebar, etc.
     // --- Titlebar to App connections ---
     this.titlebar.container.addEventListener('sidebarToggle', () => {
       const isCollapsed = document.getElementById('app-view').classList.toggle('sidebar-collapsed');
       document.getElementById('app-titlebar').classList.toggle('sidebar-collapsed', isCollapsed);
       this.updateSession();
     });
-
+    
     this.titlebar.container.addEventListener('modeChange', (e) => {
       const mode = e.detail.mode;
       const editor = this.getActiveEditor();
@@ -97,38 +145,51 @@ class App {
         this.sidebar.showHistoryView();
       }
     });
-
+    // 6. Update handlers to call the state service instead of managing state directly
     this.titlebar.container.addEventListener('projectChange', (e) => {
-        this.handleProjectSelection(e.detail.path);
+        // DISPATCH action to the service
+        this.projectState.setActiveProject(e.detail.path);
     });
-    
+
     this.titlebar.container.addEventListener('projectAction', async (e) => {
         const { action, path } = e.detail;
-
+        // DISPATCH actions to the service
         if (action === 'add_new_project') {
-            const projectsBefore = this.sidebar.projects.length;
-            const updatedProjects = await this.projectManager.addProject();
-            if (updatedProjects && updatedProjects.length > projectsBefore) {
-                await this.refreshProjects();
-            }
+            await this.projectState.addProject();
         } else if (action === 'untrack_project') {
-            await this.projectManager.untrackProject(path);
-            await this.refreshProjects();
+            await this.projectState.untrackProject(path);
         } else if (action === 'delete_project') {
-            const result = await this.projectManager.deleteProject(path);
-            if (result.success) {
-                await this.refreshProjects();
-            }
+            await this.projectState.deleteProject(path);
         }
     });
-
+    
     // --- Tabs to App/Editor connections ---
-    this.tabs.on('activeTabChanged', ({ activeTabId }) => {
-      this.setActiveEditor(activeTabId);
+    this.tabs.on('setActiveTabRequested', ({ fileId }) => {
+        this.projectState.setActiveTab(fileId);
     });
 
     this.tabs.on('tabCloseRequested', ({ fileId }) => {
-      this.closeTab(fileId);
+        const instance = this.editors.get(fileId);
+        // Check for unsaved changes before dispatching the close action
+        if (instance && !instance.editor.confirmDiscardChanges()) {
+            return; // User cancelled
+        }
+        this.projectState.closeTab(fileId);
+    });
+    
+    this.tabs.on('closeOtherTabsRequested', ({ fileId }) => {
+        let canClose = true;
+        for (const [id, instance] of this.editors.entries()) {
+            if (id !== fileId && instance.editor.isDirty) {
+                if (!instance.editor.confirmDiscardChanges()) {
+                    canClose = false;
+                    break;
+                }
+            }
+        }
+        if (canClose) {
+            this.projectState.closeOtherTabs(fileId);
+        }
     });
 
     this.tabs.on('chatToggled', () => {
@@ -149,12 +210,12 @@ class App {
         if (editorInstance) {
             const { project, editor } = editorInstance;
             const fileId = editor.currentFile;
-            const name = this.sidebar.getFileName(project.path, fileId);
+            const name = this.sidebar.getFileName(fileId);
 
             const confirmed = confirm(`Are you sure you want to delete "${name || fileId}"? This action cannot be undone.`);
             if (confirmed) {
-                await this.projectManager.deleteNote(project.path, fileId);
-                // The closeTab will handle UI cleanup, and it gets called by the sidebar's delete handler
+                // DISPATCH action to the service
+                await this.projectState.deleteNote(project.path, fileId);
             }
         }
     });
@@ -174,9 +235,10 @@ class App {
     });
 
     this.sidebar.on('createNote', async ({ project, name, parentId }) => {
-      const result = await this.projectManager.createNote(project.path, name, parentId);
+      // DISPATCH action to the service
+      const result = await this.projectState.createNote({ projectPath: project.path, name, parentId });
       if (result.success) {
-        await this.sidebar.refreshFileTree();
+        // We no longer need to manually refresh the sidebar. The 'notes-changed' event handles it.
         await this.openOrFocusFile(project, result.note.id);
       } else {
         alert(`Error creating page: ${result.error || 'Unknown error'}`);
@@ -184,32 +246,27 @@ class App {
     });
     
     this.sidebar.on('renameNote', async ({ project, id, newName }) => {
-        const result = await this.projectManager.renameNote(project.path, id, newName);
-        if (result.success) {
-            await this.sidebar.refreshFileTree();
-            // Update tab title if it's open
-            if(this.editors.has(id)) {
-                this.tabs.updateTabTitle(id, newName);
-            }
-        } else {
+        // DISPATCH action to the service
+        const result = await this.projectState.renameNote(project.path, id, newName);
+        if (!result.success) {
             alert(`Error renaming page: ${result.error || 'Unknown error'}`);
-            await this.sidebar.refreshFileTree();
+            // The sidebar will auto-refresh from the 'notes-changed' event,
+            // or we could force a refresh on failure.
+            await this.sidebar.refreshFileTree(); 
         }
     });
 
     this.sidebar.on('deleteNoteRequested', async ({ project, file }) => {
       const confirmed = confirm(`Are you sure you want to delete this file? This action cannot be undone.`);
       if (confirmed) {
-        const result = await this.projectManager.deleteNote(project.path, file);
-        if (result.success) {
-          this.closeTab(file, true); // Force close without confirmation
-          this.sidebar.refreshFileTree();
-        } else {
+        // DISPATCH action to the service
+        const result = await this.projectState.deleteNote(project.path, file);
+        if (!result.success) {
           alert(`Error deleting note: ${result.error || 'Unknown error'}`);
         }
+        // The 'note-deleted' event will close the tab automatically via the state service.
       }
     });
-
     this.sidebar.on('searchInitiated', ({ project }) => {
         let context = {};
         if (project) {
@@ -220,7 +277,6 @@ class App {
         }
         this.openSearchModal(context);
     });
-
     // --- View Switching Connections ---
     this.sidebar.on('settingsClicked', () => this.showSettingsView());
     this.settings.on('closeSettings', () => this.showMainView());
@@ -229,75 +285,71 @@ class App {
     this.searchModal.on('resultSelected', async ({ type, metadata }) => {
         this.searchModal.hide();
         if (type === 'page' || type === 'content_line') {
-            const project = { name: metadata.projectName, path: metadata.projectPath };
-            await this.handleProjectSelection(metadata.projectPath);
+            await this.projectState.setActiveProject(metadata.projectPath);
+            const project = this.projectState.activeProject;
             await this.openOrFocusFile(project, metadata.noteId);
         } else if (type === 'project') {
-            await this.handleProjectSelection(metadata.projectPath);
+            await this.projectState.setActiveProject(metadata.projectPath);
         }
     });
+  }
+
+  // Helper to create an editor without opening a tab, used for session restore
+  async ensureEditorExists(project, fileId) {
+    if (this.editors.has(fileId)) return true;
+
+    const editorContainer = document.createElement('div');
+    editorContainer.className = 'editor-instance';
+    this.editorsWrapper.appendChild(editorContainer);
+    
+    const newEditor = new Editor(this.projectState, this.hgmd, editorContainer);
+    this.editors.set(fileId, { editor: newEditor, container: editorContainer, project: project });
+
+    newEditor.on('dirtyStateChanged', ({ isDirty }) => {
+        this.projectState.setTabDirty({ fileId, isDirty });
+    });
+    
+    newEditor.on('noteSaved', () => {
+        this.sidebar.setCurrentFile(project, fileId);
+    });
+
+    const loadSuccess = await newEditor.loadNoteContent(project.path, fileId);
+    if (loadSuccess) {
+        newEditor.setCurrentFile(project, fileId);
+        return true;
+    } else {
+        this.editors.delete(fileId);
+        editorContainer.remove();
+        return false;
+    }
   }
 
   async openOrFocusFile(project, fileId) {
     // If the editor for this file doesn't exist yet, create it.
-    if (!this.editors.has(fileId)) {
-        // --- Create a new editor instance ---
-        const editorContainer = document.createElement('div');
-        editorContainer.className = 'editor-instance';
-        this.editorsWrapper.appendChild(editorContainer);
-        
-        const newEditor = new Editor(this.projectManager, this.hgmd, editorContainer);
-        this.editors.set(fileId, { editor: newEditor, container: editorContainer, project: project });
+    await this.ensureEditorExists(project, fileId);
 
-        // --- Connect events for the new editor ---
-        newEditor.on('dirtyStateChanged', ({ isDirty }) => {
-            this.tabs.setTabDirty(fileId, isDirty);
-        });
-        
-        newEditor.on('noteSaved', () => {
-            // After saving, the sidebar might need to know about the current file state.
-            this.sidebar.setCurrentFile(project, fileId);
-        });
-
-        // --- Load content and update UI ---
-        const loadSuccess = await newEditor.loadNoteContent(project.path, fileId);
-        if (loadSuccess) {
-            newEditor.setCurrentFile(project, fileId);
-        } else {
-            // Cleanup if loading failed (e.g., file deleted externally)
-            this.editors.delete(fileId);
-            editorContainer.remove();
-            return; // Abort opening
-        }
-    }
-
-    // Now that the editor is guaranteed to exist, open/focus the tab.
-    // This will trigger the 'activeTabChanged' event, which in turn calls setActiveEditor.
-    const fileName = this.sidebar.getFileName(fileId) || 'Untitled';
-    this.tabs.openTab({ fileId: fileId, title: fileName, project: project });
+    // Now that the editor is guaranteed to exist, tell the state service to open/focus the tab.
+    // This will trigger the 'tabs-changed' event, which handles all subsequent UI updates.
+    this.projectState.openTab({ projectPath: project.path, fileId });
   }
-  
-  // This method now ONLY handles editor visibility, not tab state.
+
+  // This method now ONLY handles editor visibility, driven by state changes.
   setActiveEditor(fileId) {
-    if (this.activeFileId === fileId) return;
-
-    this.activeFileId = fileId;
-
-    // Hide all editor containers
-    this.editors.forEach((instance) => {
-        instance.container.style.display = 'none';
+    // Hide or show each editor instance based on the active fileId
+    this.editors.forEach((instance, id) => {
+        const shouldBeVisible = id === fileId;
+        // Use 'flex' to match the intended layout from CSS, and 'none' to hide.
+        instance.container.style.display = shouldBeVisible ? 'flex' : 'none';
     });
-    
-    this.welcomeMessageEl.style.display = 'none';
 
     if (fileId && this.editors.has(fileId)) {
-      // Show the selected editor's container
+      // If an editor is active, hide the welcome message
+      this.welcomeMessageEl.style.display = 'none';
       const activeInstance = this.editors.get(fileId);
-      activeInstance.container.style.display = 'block';
       this.sidebar.setCurrentFile(activeInstance.project, fileId);
     } else {
-      // If no fileId or instance, show welcome message
-      this.welcomeMessageEl.style.display = 'block';
+      // If no editor is active, show the welcome message
+      this.welcomeMessageEl.style.display = 'flex';
       this.sidebar.setCurrentFile(null, null);
     }
 
@@ -305,89 +357,22 @@ class App {
     this.updateSession();
   }
   
-  closeTab(fileId, force = false) {
-    const instance = this.editors.get(fileId);
-    if (!instance) return;
-
-    if (!force) {
-        if (!instance.editor.confirmDiscardChanges()) {
-            return; // User cancelled
-        }
-    }
-
-    // Cleanup editor instance
-    instance.container.remove();
-    this.editors.delete(fileId);
-
-    // Tell Tabs component to close the tab. It will handle activating the next one
-    // and emitting 'activeTabChanged', which our listener will catch to update the editor view.
-    this.tabs.closeTab(fileId);
-  }
-  
-  async handleProjectSelection(projectPath) {
-    // Logic remains mostly the same
-    if (projectPath === "") {
-      this.sidebar.displayProject(null);
-      this.titlebar.setCurrentProjectName(null);
-      this.titlebar.updateProjectList(this.sidebar.projects, null);
-    } else {
-      const project = this.sidebar.projects.find(p => p.path === projectPath);
-      if (project) {
-        this.sidebar.displayProject(project);
-        this.titlebar.setCurrentProjectName(project.name);
-        this.titlebar.updateProjectList(this.sidebar.projects, project.path);
-        this.updateSession();
-      }
-    }
-  }
-
-  async refreshProjects() {
-    const currentProjectPath = this.sidebar.currentProject?.path;
-    await this.sidebar.loadProjects();
-    const currentProjectStillExists = currentProjectPath && this.sidebar.projects.some(p => p.path === currentProjectPath);
-
-    if (currentProjectStillExists) {
-        this.titlebar.updateProjectList(this.sidebar.projects, currentProjectPath);
-    } else {
-        this.sidebar.displayProject(null);
-        this.titlebar.setCurrentProjectName(null);
-        this.titlebar.updateProjectList(this.sidebar.projects, null);
-        // FUTURE: Close all tabs belonging to the deleted/untracked project
-    }
-  }
+  // REMOVED `closeTab`. Logic is now in state service and `tabs-changed` listener.
+  // REMOVED `handleProjectSelection`. Logic is now `projectState.setActiveProject`.
 
   updateSession() {
     const sessionData = {
-        lastProjectPath: this.sidebar.currentProject?.path || null,
-        // FUTURE: could save all open tabs here. For now, just the active one.
-        lastOpenFileId: this.activeFileId || null,
+        lastProjectPath: this.projectState.activeProject?.path || null,
+        // Save all open tabs and the active one from the state service
+        openTabs: this.projectState.openTabs.map(t => ({ fileId: t.fileId, projectPath: t.project.path })),
+        activeTabId: this.projectState.activeTabId,
         sidebarCollapsed: document.getElementById('app-view').classList.contains('sidebar-collapsed'),
         chatVisible: document.getElementById('app-view').classList.contains('chat-visible'),
     };
     window.api.updateSessionData(sessionData);
   }
 
-  async restoreSession(session) {
-    if (session.sidebarCollapsed) {
-      document.getElementById('app-view').classList.add('sidebar-collapsed');
-      document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
-    }
-    if (session.chatVisible) {
-      document.getElementById('app-view').classList.add('chat-visible');
-    }
-
-    if (session.lastProjectPath) {
-      const projectExists = this.sidebar.projects.some(p => p.path === session.lastProjectPath);
-      if (projectExists) {
-        await this.handleProjectSelection(session.lastProjectPath);
-        if (session.lastOpenFileId) {
-            const project = this.sidebar.currentProject;
-            // openOrFocusFile handles creating the editor and tab
-            await this.openOrFocusFile(project, session.lastOpenFileId);
-        }
-      }
-    }
-  }
+  // REMOVED `restoreSession`. Logic is now integrated into `start`.
 
   handleEscKey(e) {
     if (e.key === 'Escape') {
@@ -428,11 +413,36 @@ class App {
     const settings = await window.api.getSettings();
     const session = settings.session;
     
-    await this.sidebar.loadProjects();
-    this.titlebar.updateProjectList(this.sidebar.projects, null);
-
+    // 7. Load initial data from the service
+    await this.projectState.loadInitialData();
+    
     if (session) {
-      await this.restoreSession(session);
+      if (session.sidebarCollapsed) {
+        document.getElementById('app-view').classList.add('sidebar-collapsed');
+        document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
+      }
+      if (session.chatVisible) {
+        document.getElementById('app-view').classList.add('chat-visible');
+      }
+
+      if (session.lastProjectPath) {
+        const projectExists = this.projectState.projects.some(p => p.path === session.lastProjectPath);
+        if (projectExists) {
+            // This loads notes for the project
+            await this.projectState.setActiveProject(session.lastProjectPath);
+
+            if (session.openTabs && session.openTabs.length > 0) {
+                for (const tab of session.openTabs) {
+                    const project = this.projectState.projects.find(p => p.path === tab.projectPath);
+                    if (project) {
+                        await this.ensureEditorExists(project, tab.fileId);
+                    }
+                }
+                // Restore tab state AFTER all editors are created
+                this.projectState.restoreTabs(session.openTabs, session.activeTabId);
+            }
+        }
+      }
     }
     
     // Global keyboard listeners
@@ -458,7 +468,7 @@ class App {
                 }
             } else {
                 // Project-wide (or global) search (Ctrl+K)
-                const currentProject = this.sidebar.currentProject;
+                const currentProject = this.projectState.activeProject;
                 let context = {};
                 if (currentProject) {
                     context.projectPath = currentProject.path;
