@@ -148,7 +148,8 @@ const blockRules = [
       const itemRegex = /<li>([\s\S]*?)<\/li>/gi;
       let itemMatch;
       while ((itemMatch = itemRegex.exec(content)) !== null) {
-        let itemContent = itemMatch;
+        // ACTUAL FIX: Use itemMatch to get the captured string content.
+        let itemContent = itemMatch[1];
         const checkboxRegex = /<input type="checkbox"[^>]*>/;
         const checkboxMatch = itemContent.match(checkboxRegex);
         if (checkboxMatch) {
@@ -191,7 +192,8 @@ const blockRules = [
       let itemMatch;
       let counter = 1;
       while ((itemMatch = itemRegex.exec(content)) !== null) {
-        const itemContent = itemMatch;
+        // ACTUAL FIX: Use itemMatch to get the captured string content.
+        let itemContent = itemMatch[1];
         const cleanedContent = itemContent.replace(/<br\s*\/?>/gi, '').trim();
         if (cleanedContent) {
           markdown += `${counter}. ${cleanedContent}\n`;
