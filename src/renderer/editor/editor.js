@@ -3,6 +3,7 @@
 import { SlashCommand } from './scmd/slashCommand.js';
 import { EmojiPicker } from './scmd/emojiPicker.js';
 import { TableManager } from './table.js';
+import { FindManager } from './find.js';
 
 export class Editor {
   constructor(projectManager, hgmd, container) {
@@ -14,8 +15,6 @@ export class Editor {
     this.currentFile = null;
     this.currentVersion = null;
     this.listeners = {};
-    this.findMatches = [];
-    this.currentFindIndex = -1;
 
     this.container.style.position = 'relative';
     // NEW: Add a class and ensure it takes full height
@@ -23,6 +22,7 @@ export class Editor {
 
     this.render();
     this.initElements();
+    this.findManager = new FindManager(this);
     this.slashCommand = new SlashCommand(this);
     this.emojiPicker = new EmojiPicker(this);
     this.tableManager = new TableManager(this);
@@ -57,12 +57,6 @@ export class Editor {
     // References to old toolbar buttons are gone.
     this.editorEl = this.container.querySelector('#editor');
     this.floatingToolbar = this.container.querySelector('#floating-toolbar');
-    this.findBar = this.container.querySelector('#find-bar');
-    this.findInput = this.container.querySelector('#find-input');
-    this.findCounter = this.container.querySelector('#find-counter');
-    this.findPrev = this.container.querySelector('#find-prev');
-    this.findNext = this.container.querySelector('#find-next');
-    this.findClose = this.container.querySelector('#find-close');
   }
   
   on(event, callback) {
@@ -124,7 +118,7 @@ export class Editor {
             break;
           case 'f':
             e.preventDefault();
-            this.showFindBar();
+            this.findManager.showFindBar();
             break;
         }
       }
@@ -148,24 +142,6 @@ export class Editor {
     });
 
     this.floatingToolbar.addEventListener('mousedown', (e) => e.preventDefault());
-
-    this.findInput.addEventListener('input', () => this.executeFind());
-    this.findInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (e.shiftKey) {
-                this.findPrevMatch();
-            } else {
-                this.findNextMatch();
-            }
-        }
-        if (e.key === 'Escape') {
-            this.hideFindBar();
-        }
-    });
-    this.findNext.addEventListener('click', () => this.findNextMatch());
-    this.findPrev.addEventListener('click', () => this.findPrevMatch());
-    this.findClose.addEventListener('click', () => this.hideFindBar());
   }
 
   handleSlashCommandTrigger() {
@@ -349,7 +325,7 @@ export class Editor {
     const { isRestore = false } = options;
     if (!this.currentProject || !this.currentFile || (!this.isDirty && !isRestore)) return;
     
-    this.clearFindHighlights(); // Clear highlights before saving
+    this.findManager.clearFindHighlights(); // Clear highlights before saving
     const htmlContent = this.editorEl.innerHTML;
     // The engine now handles escaping internally.
     const markdownContent = this.hgmd.toMarkdown(htmlContent);
@@ -402,138 +378,5 @@ export class Editor {
     this.editorEl.focus();
     this.handleInput();
     this.updateToolbarState();
-  }
-  
-  // --- Find Functionality ---
-
-  showFindBar() {
-    this.findBar.classList.remove('hidden');
-    const selection = window.getSelection().toString();
-    if (selection) {
-        this.findInput.value = selection;
-    }
-    this.findInput.focus();
-    this.findInput.select();
-    this.executeFind();
-  }
-
-  hideFindBar() {
-    this.findBar.classList.add('hidden');
-    this.clearFindHighlights();
-    this.editorEl.focus();
-  }
-
-  clearFindHighlights() {
-    const marks = Array.from(this.editorEl.querySelectorAll('mark.find-match'));
-    marks.forEach(mark => {
-        const parent = mark.parentNode;
-        if (parent) {
-            while (mark.firstChild) {
-                parent.insertBefore(mark.firstChild, mark);
-            }
-            parent.removeChild(mark);
-            parent.normalize(); // Merges adjacent text nodes
-        }
-    });
-    this.findMatches = [];
-    this.currentFindIndex = -1;
-    this.findCounter.textContent = '';
-  }
-  
-  escapeRegex(string) {
-    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  }
-
-  executeFind() {
-    this.clearFindHighlights();
-    const searchTerm = this.findInput.value;
-    if (searchTerm.length < 1) return;
-
-    const regex = new RegExp(this.escapeRegex(searchTerm), 'gi');
-    const walker = document.createTreeWalker(this.editorEl, NodeFilter.SHOW_TEXT);
-    
-    const nodesToSearch = [];
-    let currentNode;
-    while(currentNode = walker.nextNode()) {
-        nodesToSearch.push(currentNode);
-    }
-    
-    for (const node of nodesToSearch) {
-        if (!node.parentNode || node.parentNode.nodeName === 'MARK' || !this.editorEl.contains(node)) continue;
-
-        const matches = [...node.nodeValue.matchAll(regex)];
-        if (matches.length === 0) continue;
-
-        for (let i = matches.length - 1; i >= 0; i--) {
-            const match = matches[i];
-            const matchIndex = match.index;
-            const matchText = match[0];
-            
-            node.splitText(matchIndex + matchText.length);
-            let matchNode = node.splitText(matchIndex);
-            
-            const mark = document.createElement('mark');
-            mark.className = 'find-match';
-            mark.textContent = matchText;
-
-            matchNode.parentNode.replaceChild(mark, matchNode);
-            this.findMatches.push(mark);
-        }
-    }
-
-    this.findMatches.sort((a, b) => {
-        // compareDocumentPosition returns a bitmask.
-        // We check if 'a' comes before 'b' in the document tree.
-        const pos = a.compareDocumentPosition(b);
-        
-        if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
-            // 'a' precedes 'b', so 'a' should come first.
-            return 1;
-        } else if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
-            // 'a' follows 'b', so 'a' should come second.
-            return -1;
-        } else {
-            // They are the same node.
-            return 0;
-        }
-    });
-
-    if (this.findMatches.length > 0) {
-        this.currentFindIndex = 0;
-        this.navigateToMatch(this.currentFindIndex);
-    } else {
-        this.findCounter.textContent = '0/0';
-    }
-  }
-
-  navigateToMatch(index) {
-    if (this.findMatches.length === 0 || index < 0 || index >= this.findMatches.length) return;
-
-    if (this.currentFindIndex !== -1 && this.findMatches[this.currentFindIndex]) {
-        this.findMatches[this.currentFindIndex].classList.remove('current');
-    }
-
-    this.currentFindIndex = index;
-    const currentMatch = this.findMatches[this.currentFindIndex];
-    currentMatch.classList.add('current');
-    this.findCounter.textContent = `${this.currentFindIndex + 1}/${this.findMatches.length}`;
-    
-    currentMatch.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest'
-    });
-  }
-
-  findNextMatch() {
-    if (this.findMatches.length === 0) return;
-    const nextIndex = (this.currentFindIndex + 1) % this.findMatches.length;
-    this.navigateToMatch(nextIndex);
-  }
-
-  findPrevMatch() {
-    if (this.findMatches.length === 0) return;
-    const prevIndex = (this.currentFindIndex - 1 + this.findMatches.length) % this.findMatches.length;
-    this.navigateToMatch(prevIndex);
   }
 }
