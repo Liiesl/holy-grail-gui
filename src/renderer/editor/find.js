@@ -12,6 +12,9 @@ export class FindManager {
     this.findPrev = editor.container.querySelector('#find-prev');
     this.findNext = editor.container.querySelector('#find-next');
     this.findClose = editor.container.querySelector('#find-close');
+    this.replaceInput = editor.container.querySelector('#replace-input');
+    this.replaceOneBtn = editor.container.querySelector('#replace-one');
+    this.replaceAllBtn = editor.container.querySelector('#replace-all');
 
     this.findMatches = [];
     this.currentFindIndex = -1;
@@ -37,6 +40,15 @@ export class FindManager {
     this.findNext.addEventListener('click', () => this.findNextMatch());
     this.findPrev.addEventListener('click', () => this.findPrevMatch());
     this.findClose.addEventListener('click', () => this.hideFindBar());
+
+    this.replaceOneBtn.addEventListener('click', () => this.replace());
+    this.replaceAllBtn.addEventListener('click', () => this.replaceAll());
+    this.replaceInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.replace();
+        }
+    });
   }
   
   showFindBar() {
@@ -115,28 +127,51 @@ export class FindManager {
     }
 
     this.findMatches.sort((a, b) => {
-        // compareDocumentPosition returns a bitmask.
-        // We check if 'a' comes before 'b' in the document tree.
         const pos = a.compareDocumentPosition(b);
-        
-        if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
-            // 'a' precedes 'b', so 'a' should come first.
-            return 1;
-        } else if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
-            // 'a' follows 'b', so 'a' should come second.
-            return -1;
-        } else {
-            // They are the same node.
-            return 0;
-        }
+        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+        if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+        return 0;
     });
 
     if (this.findMatches.length > 0) {
-        this.currentFindIndex = 0;
+        this.currentFindIndex = this.findClosestMatchIndex();
         this.navigateToMatch(this.currentFindIndex);
     } else {
         this.findCounter.textContent = '0/0';
     }
+  }
+
+  isElementInViewport(el) {
+    const editorRect = this.editorEl.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    return (
+        elRect.top >= editorRect.top &&
+        elRect.bottom <= editorRect.bottom
+    );
+  }
+
+  findClosestMatchIndex() {
+    const editorRect = this.editorEl.getBoundingClientRect();
+    
+    let firstVisibleIndex = -1;
+    let firstAfterIndex = -1;
+
+    for (let i = 0; i < this.findMatches.length; i++) {
+        const match = this.findMatches[i];
+        const matchRect = match.getBoundingClientRect();
+        
+        if (matchRect.bottom > editorRect.top && matchRect.top < editorRect.bottom) {
+             if (firstVisibleIndex === -1) firstVisibleIndex = i;
+        }
+        
+        if (matchRect.top >= editorRect.bottom) {
+            if (firstAfterIndex === -1) firstAfterIndex = i;
+        }
+    }
+    
+    if (firstVisibleIndex !== -1) return firstVisibleIndex;
+    if (firstAfterIndex !== -1) return firstAfterIndex;
+    return 0;
   }
 
   navigateToMatch(index) {
@@ -151,11 +186,13 @@ export class FindManager {
     currentMatch.classList.add('current');
     this.findCounter.textContent = `${this.currentFindIndex + 1}/${this.findMatches.length}`;
     
-    currentMatch.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest'
-    });
+    if (!this.isElementInViewport(currentMatch)) {
+        currentMatch.scrollIntoView({
+            behavior: 'instant',
+            block: 'center',
+            inline: 'nearest'
+        });
+    }
   }
 
   findNextMatch() {
@@ -168,5 +205,53 @@ export class FindManager {
     if (this.findMatches.length === 0) return;
     const prevIndex = (this.currentFindIndex - 1 + this.findMatches.length) % this.findMatches.length;
     this.navigateToMatch(prevIndex);
+  }
+
+  replace() {
+    if (this.currentFindIndex === -1 || !this.findMatches[this.currentFindIndex]) return;
+    
+    const currentMatch = this.findMatches[this.currentFindIndex];
+    const parent = currentMatch.parentNode;
+    const replacementText = this.replaceInput.value;
+
+    const range = document.createRange();
+    range.setStartAfter(currentMatch);
+    range.collapse(true);
+    
+    const newTextNode = document.createTextNode(replacementText);
+    parent.replaceChild(newTextNode, currentMatch);
+    parent.normalize();
+    
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    this.executeFind();
+    this.editor.handleInput();
+  }
+
+  replaceAll() {
+    const searchTerm = this.findInput.value;
+    const replaceText = this.replaceInput.value;
+    const matchCount = this.findMatches.length;
+    
+    if (searchTerm.length < 1 || matchCount === 0) return;
+    
+    for (let i = matchCount - 1; i >= 0; i--) {
+        const match = this.findMatches[i];
+        if (match && match.parentNode) {
+            const newTextNode = document.createTextNode(replaceText);
+            match.parentNode.replaceChild(newTextNode, match);
+        }
+    }
+    
+    this.editorEl.normalize();
+    
+    this.findMatches = [];
+    this.currentFindIndex = -1;
+    this.findCounter.textContent = `Replaced ${matchCount} item(s).`;
+    
+    this.findInput.focus();
+    this.editor.handleInput();
   }
 }

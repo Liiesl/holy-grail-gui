@@ -39,6 +39,9 @@ export class Editor {
         <span id="find-counter"></span>
         <button id="find-prev" title="Previous match">&uarr;</button>
         <button id="find-next" title="Next match">&darr;</button>
+        <input type="text" id="replace-input" placeholder="Replace...">
+        <button id="replace-one" title="Replace current">Replace</button>
+        <button id="replace-all" title="Replace all">Replace All</button>
         <button id="find-close" title="Close">&times;</button>
       </div>
       <div id="editor" contenteditable="true" spellcheck="false"></div>
