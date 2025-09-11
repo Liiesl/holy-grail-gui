@@ -22,6 +22,7 @@ export class Sidebar {
     this.initElements();
     this.initViews();
     this.addEventListeners();
+    this.initResizer(); // Add resizer logic
   }
 
   render() {
@@ -33,6 +34,7 @@ export class Sidebar {
       <div class="sidebar-footer">
           <button id="settings-btn" class="sidebar-footer-btn" title="Settings">&#9881; <span>Settings</span></button>
       </div>
+      <div id="sidebar-resizer" class="sidebar-resizer"></div>
     `;
   }
 
@@ -40,6 +42,7 @@ export class Sidebar {
     this.settingsBtn = this.container.querySelector('#settings-btn');
     this.projectViewContainer = this.container.querySelector('#project-view-container');
     this.historyViewContainer = this.container.querySelector('#history-view-container');
+    this.resizer = this.container.querySelector('#sidebar-resizer');
   }
 
   initViews() {
@@ -63,6 +66,42 @@ export class Sidebar {
     this.projectView.on('deleteNoteRequested', (data) => this.emit('deleteNoteRequested', data));
     this.projectView.on('searchInitiated', (data) => this.emit('searchInitiated', data));
     this.historyView.on('versionSelected', (data) => this.emit('versionSelected', data));
+  }
+
+  initResizer() {
+    const minWidth = 200;
+    const maxWidth = 500;
+
+    const startResize = (e) => {
+      e.preventDefault();
+      this.resizer.classList.add('is-resizing');
+
+      const startX = e.clientX;
+      const startWidth = this.container.offsetWidth;
+
+      const doResize = (moveEvent) => {
+        let newWidth = startWidth + moveEvent.clientX - startX;
+        if (newWidth < minWidth) newWidth = minWidth;
+        if (newWidth > maxWidth) newWidth = maxWidth;
+
+        this.container.style.width = `${newWidth}px`;
+        // Emit the new width so other components (like titlebar) can react
+        this.emit('resized', { width: newWidth });
+      };
+
+      const stopResize = () => {
+        this.resizer.classList.remove('is-resizing');
+        document.removeEventListener('mousemove', doResize, false);
+        document.removeEventListener('mouseup', stopResize, false);
+        // Emit an event when resizing is finished to save the state
+        this.emit('resizeEnd', { width: this.container.offsetWidth });
+      };
+
+      document.addEventListener('mousemove', doResize, false);
+      document.addEventListener('mouseup', stopResize, false);
+    };
+
+    this.resizer.addEventListener('mousedown', startResize, false);
   }
 
   on(event, callback) {

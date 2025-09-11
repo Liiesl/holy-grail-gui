@@ -13,6 +13,7 @@ import { ContextMenuService } from './context-menu.js';
 class App {
   constructor() {
     // State related to editors and panes has been moved to Main.js
+    this.sidebarWidth = 280; // Default width
     this.renderLayout();
     this.projectState = new ProjectStateService(); 
     this.initServices();
@@ -174,6 +175,13 @@ class App {
     this.sidebar.on('searchInitiated', ({ project }) => {
         this.openSearchModal(project ? { projectPath: project.path, projectName: project.name } : {});
     });
+    this.sidebar.on('resized', ({ width }) => {
+        this.titlebar.setLeftControlsWidth(width);
+    });
+    this.sidebar.on('resizeEnd', ({ width }) => {
+        this.sidebarWidth = width;
+        this.updateSession();
+    });
     
     // --- View Switching & Modal connections ---
     this.sidebar.on('settingsClicked', () => this.showSettingsView());
@@ -197,6 +205,7 @@ class App {
         activeTabId: this.projectState.activeTabId,
         sidebarCollapsed: document.getElementById('app-view').classList.contains('sidebar-collapsed'),
         chatVisible: document.getElementById('app-view').classList.contains('chat-visible'),
+        sidebarWidth: this.sidebarWidth,
         // 7. Get layout from the Main component for saving
         paneLayout: this.main.getPaneLayout(),
     };
@@ -235,32 +244,37 @@ class App {
     const appContainer = document.getElementById('app');
     const loader = document.getElementById('loader');
 
+    // Get session data first
     const settings = await window.api.getSettings();
-    const session = settings.session;
+    const session = settings.session || {};
     
     await this.projectState.loadInitialData();
     
-    if (session) {
-      if (session.sidebarCollapsed) {
-        document.getElementById('app-view').classList.add('sidebar-collapsed');
-        document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
-      }
-      if (session.chatVisible) document.getElementById('app-view').classList.add('chat-visible');
-      if (session.paneLayout) this.main.setPaneLayout(session.paneLayout);
+    // Apply session settings that affect layout
+    this.sidebarWidth = session.sidebarWidth || 280;
+    document.getElementById('app-sidebar').style.width = `${this.sidebarWidth}px`;
+    this.titlebar.setLeftControlsWidth(this.sidebarWidth);
+    
+    if (session.sidebarCollapsed) {
+      document.getElementById('app-view').classList.add('sidebar-collapsed');
+      document.getElementById('app-titlebar').classList.add('sidebar-collapsed');
+    }
+    if (session.chatVisible) document.getElementById('app-view').classList.add('chat-visible');
+    if (session.paneLayout) this.main.setPaneLayout(session.paneLayout);
 
-      if (session.lastProjectPath) {
-        const projectExists = this.projectState.projects.some(p => p.path === session.lastProjectPath);
-        if (projectExists) {
-            await this.projectState.setActiveProject(session.lastProjectPath);
+    // Restore project and tab state
+    if (session.lastProjectPath) {
+      const projectExists = this.projectState.projects.some(p => p.path === session.lastProjectPath);
+      if (projectExists) {
+          await this.projectState.setActiveProject(session.lastProjectPath);
 
-            if (session.openTabs?.length > 0) {
-                for (const tab of session.openTabs) {
-                    const project = this.projectState.projects.find(p => p.path === tab.projectPath);
-                    if (project) await this.main.ensureEditorExists(project, tab.fileId);
-                }
-                this.projectState.restoreTabs(session.openTabs, session.activeTabId);
-            }
-        }
+          if (session.openTabs?.length > 0) {
+              for (const tab of session.openTabs) {
+                  const project = this.projectState.projects.find(p => p.path === tab.projectPath);
+                  if (project) await this.main.ensureEditorExists(project, tab.fileId);
+              }
+              this.projectState.restoreTabs(session.openTabs, session.activeTabId);
+          }
       }
     }
     

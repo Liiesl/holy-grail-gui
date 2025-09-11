@@ -6,6 +6,7 @@ export class Titlebar {
     this.isContextMenuVisible = false;
     this.projectRightClickMenu = null; // For right-click menu
     this.render();
+    this.leftControls = this.container.querySelector('.titlebar-controls-left');
     this.bindEvents();
   }
 
@@ -202,6 +203,12 @@ export class Titlebar {
       if (pageHistoryBtn) {
           pageHistoryBtn.disabled = !isAvailable;
       }
+  }
+
+  setLeftControlsWidth(width) {
+    if (this.leftControls) {
+      this.leftControls.style.width = `${width}px`;
+    }
   }
 
   // Methods for right-click context menu

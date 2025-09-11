@@ -32,14 +32,15 @@
 }
 
 .titlebar-controls-left {
-    width: 280px;
+    /* width is now set dynamically by JS */
     border-right: 1px solid var(--color-border);
-    transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, border-color 0.3s ease-in-out;
+    transition: padding 0.3s ease-in-out, border-color 0.3s ease-in-out;
     overflow: hidden;
+    flex-shrink: 0; 
 }
 
 #app-titlebar.sidebar-collapsed .titlebar-controls-left {
-    width: 0;
+    width: 0 !important; /* Use important to override inline style from JS */
     padding: 0;
     border-right-color: transparent;
 }
@@ -84,12 +85,18 @@
     position: relative; 
     display: flex;
     flex-grow: 1;
+    /* Add this to allow the wrapper to shrink */
+    min-width: 0;
 }
 
 #project-mode-btn {
     width: 100%; /* Make button fill the wrapper */
     justify-content: flex-start;
     overflow: hidden;
+    /* --- NEW --- */
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* Specific style for icon-only buttons */
@@ -122,18 +129,21 @@
 
 #current-project-name {
     font-weight: 500;
-    max-width: 150px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    /* Add some margin to separate from the icon */
-    margin-right: auto;
+    /* --- MODIFIED --- */
+    flex-shrink: 1; /* Allow the name to shrink */
+    min-width: 0; /* Crucial: allow shrinking below content size */
+    text-align: left; /* Ensure text aligns left when shrinking */
 }
 
 .mode-btn .switcher-icon {
     font-size: 12px;
     color: var(--color-secondary);
     margin-left: 4px;
+    /* --- NEW --- */
+    flex-shrink: 0; /* Prevent icons from shrinking */
 }
 
 /* Project Context Menu */

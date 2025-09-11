@@ -13,7 +13,7 @@ let isAutoUpdateCheck = false; // Flag to differentiate auto vs manual update ch
 let availableUpdate = null; // To hold update info if download is not automatic
 
 // Define the current settings version, mirroring the one in settings.js
-const CURRENT_SETTINGS_VERSION = 'v0.1.26.5';
+const CURRENT_SETTINGS_VERSION = 'v0.1.28.1';
 
 // --- AutoUpdater Configuration & Logging ---
 autoUpdater.logger = log;
