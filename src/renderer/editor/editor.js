@@ -4,6 +4,7 @@ import { SlashCommand } from './scmd/slashCommand.js';
 import { EmojiPicker } from './scmd/emojiPicker.js';
 import { TableManager } from './table.js';
 import { FindManager } from './find.js';
+import { KanbanManager } from './kanban.js';
 
 export class Editor {
   constructor(projectManager, hgmd, container) {
@@ -26,8 +27,10 @@ export class Editor {
     this.slashCommand = new SlashCommand(this);
     this.emojiPicker = new EmojiPicker(this);
     this.tableManager = new TableManager(this);
+    this.kanbanManager = new KanbanManager(this);
     this.addEventListeners();
     this.tableManager.init();
+    this.kanbanManager.init();
     // No longer shows welcome message here, App.js manages that
   }
 
@@ -95,6 +98,10 @@ export class Editor {
       }
       if (this.emojiPicker.isVisible() && this.emojiPicker.handleKeyDown(e)) {
         return;
+      }
+      // NEW: Add Kanban keyboard handling
+      if (this.kanbanManager.handleKeyDown(e)) {
+        return; // Stop further processing if the Kanban handler took care of it
       }
 
       if (e.ctrlKey) {
@@ -354,9 +361,10 @@ export class Editor {
           await this.saveCurrentNote({ isRestore: true });
       }
   }
-  
+
   applyFormat(command) {
     if (this.editorEl.contentEditable === 'false') return;
+
     if (command === 'code' || command === 'highlight') {
         const selection = window.getSelection().toString();
         if (selection) {

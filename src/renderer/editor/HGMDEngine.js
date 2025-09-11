@@ -185,6 +185,10 @@ export class HGMDEngine {
     // Pre-processing Step 2: Standardize input from contenteditable fields.
     processedHtml = processedHtml.replace(/&nbsp;/g, ' '); // Replace non-breaking spaces.
     
+    //- TEST ---
+    console.log("Pre-processed HTML:", processedHtml);
+    //- END TEST ---
+
     let markdown = processedHtml;
     
     // Apply all rules in their defined order. The order is critical here.
@@ -194,8 +198,11 @@ export class HGMDEngine {
       }
     });
 
+    console.log("Markdown after applying rules:", markdown);
+
     // Post-processing: Clean up any remaining artifacts.
     markdown = markdown.replace(/<[^>]*>/g, ''); // Strip lingering HTML tags
+    console.log("Markdown after stripping HTML tags:", markdown);
     return markdown.trim();
   }
 }

@@ -13,6 +13,103 @@ const widgetRules = [
     htmlToMd: '::$1[$2]\n',
   },
   {
+    name: 'kanban',
+    type: 'block',
+    multiLine: true,
+    mdRegex: /^\s*-\s*\[>\]\s*(.*)/, // --- FIX: Detect new start line ---
+    mdToHtml: (startIndex, lines, engine) => {
+      // --- START: NEW PARSING LOGIC ---
+      const htmlParts = ['<div class="kanban-board" contenteditable="false">'];
+      let i = startIndex + 1;
+      let linesConsumed = 1; // For the start line '- [>] ...'
+
+      let inColumn = false;
+
+      const columnRegex = /^\s{2,4}-\s*\[>\]\s*(.*)/;
+      const cardRegex = /^\s{4,}-\s*\[~\]\s*(.*)/;
+      const endRegex = /^\s*-\s*\[<\]/;
+
+      while (i < lines.length && !endRegex.test(lines[i])) {
+        const line = lines[i];
+        linesConsumed++;
+
+        const columnMatch = line.match(columnRegex);
+        const cardMatch = line.match(cardRegex);
+
+        if (columnMatch) {
+          if (inColumn) {
+            // Close the previous column's card container and the column itself
+            htmlParts.push('</div>'); // .kanban-cards
+            htmlParts.push('<button class="kanban-add-card" contenteditable="false">+ Add Card</button>');
+            htmlParts.push('</div>'); // .kanban-column
+          }
+          inColumn = true;
+          const title = engine._processInlineMd(columnMatch[1].trim());
+          htmlParts.push('<div class="kanban-column">');
+          htmlParts.push(`<div class="kanban-column-title" contenteditable="true">${title}</div>`);
+          htmlParts.push('<div class="kanban-cards">');
+        } else if (cardMatch && inColumn) {
+          const content = engine._processInlineMd(cardMatch[1].trim());
+          htmlParts.push('<div class="kanban-card-wrapper" draggable="true">');
+          // Use <br> for cards that are empty in markdown for better rendering
+          htmlParts.push(`<div class="kanban-card" contenteditable="true">${content || '<br>'}</div>`);
+          htmlParts.push('</div>');
+        }
+        // Lines that do not match the column or card pattern are ignored.
+        i++;
+      }
+
+      if (inColumn) {
+        // Close the last column
+        htmlParts.push('</div>'); // .kanban-cards
+        htmlParts.push('<button class="kanban-add-card" contenteditable="false">+ Add Card</button>');
+        htmlParts.push('</div>'); // .kanban-column
+      }
+
+      // Add the button to create new columns at the end of the board.
+      htmlParts.push('<button class="kanban-add-column" title="Add another column" contenteditable="false">+</button>');
+
+      htmlParts.push('</div><!--KANBAN_END_MARKER-->'); // Close board and add marker
+
+      if (i < lines.length && endRegex.test(lines[i])) {
+        linesConsumed++; // Consume the end marker line ' - [<] ...'
+      }
+
+      return { htmlParts, linesConsumed };
+      // --- END: NEW PARSING LOGIC ---
+    },
+    htmlRegex: /<div class="kanban-board"[^>]*>(.*?)<\/div>\s*<!--KANBAN_END_MARKER-->/gis,
+    htmlToMd: (match, boardContent) => {
+      // --- START: NEW SERIALIZATION LOGIC ---
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div>${boardContent}</div>`, 'text/html');
+      const boardNode = doc.body.firstChild;
+
+      let markdown = '- [>] Kanban Board\n';
+
+      const columns = boardNode.querySelectorAll('.kanban-column');
+
+      columns.forEach(column => {
+        const titleNode = column.querySelector('.kanban-column-title');
+        const titleText = titleNode ? titleNode.textContent.trim() : 'Untitled';
+        markdown += `  - [>] ${titleText}\n`;
+
+        const cardsContainer = column.querySelector('.kanban-cards');
+        if (cardsContainer) {
+          const cards = cardsContainer.querySelectorAll('.kanban-card');
+          cards.forEach(card => {
+            const cardText = card.textContent.trim();
+            markdown += `    - [~] ${cardText}\n`;
+          });
+        }
+      });
+
+      markdown += '- [<] Kanban Board\n';
+      return markdown;
+      // --- END: NEW SERIALIZATION LOGIC ---
+    },
+  },
+  {
     name: 'table',
     type: 'block',
     multiLine: true,

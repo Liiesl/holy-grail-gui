@@ -1,0 +1,144 @@
+/* --- Kanban Board Widget --- */
+
+.kanban-board {
+  display: flex;
+  gap: 12px; /* Space between columns */
+  background-color: var(--color-surface); /* Darker background for the board area */
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto; /* Allows horizontal scrolling if columns overflow */
+  margin: 1em 0;
+  border: 1px solid var(--color-border);
+  cursor: default;
+}
+
+/* --- Custom Scrollbar for the Board (WebKit) --- */
+.kanban-board::-webkit-scrollbar {
+    height: 10px;
+}
+.kanban-board::-webkit-scrollbar-track {
+    background: transparent;
+}
+.kanban-board::-webkit-scrollbar-thumb {
+    background-color: var(--color-surface-alt);
+    border-radius: 10px;
+    border: 2px solid var(--color-surface);
+}
+.kanban-board::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-secondary);
+}
+
+
+.kanban-column {
+  min-width: 300px;
+  width: 300px;
+  background-color: var(--color-surface-alt); /* Column background */
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh; /* Prevent columns from being excessively tall */
+}
+
+.kanban-column-title {
+  padding: 10px 12px;
+  font-weight: bold;
+  font-size: 1.1em;
+  color: var(--color-text); /* Use theme text color */
+  border-bottom: 2px solid var(--color-border);
+  flex-shrink: 0; /* Prevent the title from shrinking */
+}
+
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Space between cards */
+  padding: 8px;
+  overflow-y: auto;
+  flex-grow: 1; /* Allow this area to take available space and scroll */
+}
+
+/* --- Custom Scrollbar for Card list (WebKit) --- */
+.kanban-cards::-webkit-scrollbar {
+    width: 8px;
+}
+.kanban-cards::-webkit-scrollbar-track {
+    background: transparent;
+}
+.kanban-cards::-webkit-scrollbar-thumb {
+    background-color: var(--color-dark-surface);
+    border-radius: 10px;
+}
+.kanban-cards::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-secondary);
+}
+
+.kanban-card-wrapper {
+  background-color: var(--color-dark-surface); /* Card background */
+  border-radius: 4px;
+  padding: 20px; /* This padding creates the draggable "frame" */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border);
+  cursor: grab; /* The cursor for the draggable frame */
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+.kanban-card {
+  min-height: 20px;
+  cursor: text; /* Overrides the parent's cursor, for the text area */
+  color: var(--color-text);
+  background-color: transparent; /* Sits inside the padded wrapper */
+}
+
+.kanban-card-wrapper:hover {
+  background-color: var(--color-hover);
+  border-color: var(--color-secondary);
+}
+
+.kanban-card-wrapper.dragging {
+  opacity: 0.5;
+}
+
+.kanban-column .drag-over {
+  background-color: var(--color-secondary-transparent);
+}
+
+.kanban-add-card {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 8px;
+  background-color: var(--color-surface-alt);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-align: center;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.kanban-add-card:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text);
+}
+
+
+/* --- Add Column Button --- */
+.kanban-add-column {
+  align-self: stretch; /* Make the button as tall as the columns */
+  min-height: 200px; /* Ensure it's a reasonable height even if board is empty */
+  flex-shrink: 0; /* Prevent the button from shrinking */
+  width: 32px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.5em;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.kanban-add-column:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text);
+  border-color: var(--color-secondary);
+}
