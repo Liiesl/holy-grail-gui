@@ -108,11 +108,11 @@ export class Editor {
         switch (e.key.toLowerCase()) {
           case 'b':
             e.preventDefault();
-            this.applyFormat('bold');
+            this.applyFormat('strong');
             break;
           case 'i':
             e.preventDefault();
-            this.applyFormat('italic');
+            this.applyFormat('em');
             break;
           case 'u':
             e.preventDefault();

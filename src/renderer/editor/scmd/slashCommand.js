@@ -1,5 +1,8 @@
 // src/renderer/scmd/slashCommand.js
 
+import { getCoreCommands } from './commands/coreCommands.js';
+import { getAdvancedCommands } from './commands/advancedCommands.js';
+
 export class SlashCommand {
   constructor(editor) {
     this.editor = editor; // The entire Editor instance
@@ -8,156 +11,10 @@ export class SlashCommand {
     this.activeIndex = 0;
     this.triggerInfo = null; // Will store { range, filter }
 
-    // --- NEW: Commands are now self-contained with their own execution logic ---
+    // --- NEW: Commands are now imported and combined ---
     this.commands = [
-      { name: 'Heading 1', command: 'h1', description: 'Large heading', action: (editor) => editor.applyFormat('h1') },
-      { name: 'Heading 2', command: 'h2', description: 'Medium heading', action: (editor) => editor.applyFormat('h2') },
-      { name: 'Heading 3', command: 'h3', description: 'Small heading', action: (editor) => editor.applyFormat('h3') },
-      { name: 'Bulleted List', command: 'ul', description: 'Create a simple bulleted list', action: (editor) => editor.applyFormat('ul') },
-      { name: 'Numbered List', command: 'ol', description: 'Create an ordered list', action: (editor) => editor.applyFormat('ol') },
-      { name: 'Quote', command: 'blockquote', description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
-      { name: 'Code Block', command: 'pre', description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
-      { name: 'Divider', command: 'hr', description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },
-      { 
-        name: 'Emoji', 
-        command: 'emoji', 
-        description: 'Insert an emoji', 
-        action: (editor, triggerInfo) => {
-          // --- FIX: ---
-          // The `triggerInfo.range` passed from `execute` can be stale after the DOM
-          // mutation (`deleteContents`). We must get the fresh, current cursor position
-          // from the global selection object to ensure we're working with the latest state.
-          const sel = window.getSelection();
-          if (!sel.rangeCount || !sel.isCollapsed) return; // Safety check
-          
-          const range = sel.getRangeAt(0); // Get the LIVE, current range
-          
-          const colonNode = document.createTextNode(':');
-          range.insertNode(colonNode);
-          
-          // Move cursor after the colon
-          range.setStartAfter(colonNode);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-
-          // Use setTimeout to allow the browser to render the ":" before we measure it.
-          setTimeout(() => {
-            // To get the most reliable position, create a temporary range that
-            // explicitly selects the node we want to measure (`colonNode`).
-            const colonRange = document.createRange();
-            colonRange.selectNode(colonNode);
-            const rect = colonRange.getBoundingClientRect();
-
-            const editorRect = editor.container.getBoundingClientRect();
-            const position = {
-                top: rect.bottom - editorRect.top,
-                left: rect.left - editorRect.left,
-            };
-            
-            // Pass the range that covers the ':' so the picker knows what to replace.
-            const emojiTriggerInfo = { range: colonRange, filter: '' };
-            editor.emojiPicker.show(position, emojiTriggerInfo);
-          }, 0);
-        }
-      },
-      { name: 'Seek', command: 'seek', description: 'Find and link to another note', disabled: true },
-      { name: 'Open in right pane', command: 'open-right', description: 'Open a note side-by-side', disabled: true },
-      {
-        name: 'Table',
-        command: 'table',
-        description: 'Insert a table',
-        disabled: false, // <-- Command is now enabled
-        action: (editor) => {
-          // A default table is inserted that demonstrates width and alignment features.
-          // Appending a <p><br></p> is a UX improvement to allow the user
-          // to easily type below the table after it's inserted.
-          const tableHtml = `
-            <table style="width: 80%;">
-              <thead>
-                <tr>
-                  <th style="width: 40%;">Header</th>
-                  <th style="text-align: center;">Header</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Cell</td>
-                  <td style="text-align: center;">Cell</td>
-                </tr>
-                <tr>
-                  <td>Cell</td>
-                  <td style="text-align: center;">Cell</td>
-                </tr>
-              </tbody>
-            </table>
-            <p><br></p>
-          `;
-          
-          document.execCommand('insertHTML', false, tableHtml.trim().replace(/\s{2,}/g, ' '));
-          
-          // Now, try to place the cursor in the first header cell for immediate editing.
-          const sel = window.getSelection();
-          if (!sel.rangeCount) return;
-
-          const range = sel.getRangeAt(0);
-
-          // After insertion, the cursor is in the new <p>. findParentBlock gets it.
-          const currentBlock = editor.slashCommand.findParentBlock(range.startContainer);
-          
-          // The table should be the previous sibling element.
-          if (currentBlock && currentBlock.previousElementSibling && currentBlock.previousElementSibling.tagName === 'TABLE') {
-            const table = currentBlock.previousElementSibling;
-            const firstCell = table.querySelector('th');
-            
-            if (firstCell) {
-              // Create a new range, place it inside the first cell, and collapse
-              // it to the start so the user sees a blinking cursor.
-              const newRange = document.createRange();
-              newRange.selectNodeContents(firstCell);
-              newRange.collapse(true);
-              sel.removeAllRanges();
-              sel.addRange(newRange);
-            }
-          }
-        }
-      },
-      {
-          name: 'Kanban Board',
-          command: 'kanban',
-          description: 'Create a Kanban board',
-          disabled: false,
-          action: (editor) => {
-              const kanbanHtml = `
-              <div class="kanban-board" contenteditable="false">
-                  <div class="kanban-column">
-                  <div class="kanban-column-title" contenteditable="true">To Do</div>
-                  <div class="kanban-cards">
-                      <div class="kanban-card-wrapper" draggable="true">
-                        <div class="kanban-card" contenteditable="true">Sample Card</div>
-                      </div>
-                  </div>
-                  <button class="kanban-add-card" contenteditable="false">+ Add Card</button>
-                  </div>
-                  <div class="kanban-column">
-                  <div class="kanban-column-title" contenteditable="true">In Progress</div>
-                  <div class="kanban-cards"></div>
-                  <button class="kanban-add-card" contenteditable="false">+ Add Card</button>
-                  </div>
-                  <div class="kanban-column">
-                  <div class="kanban-column-title" contenteditable="true">Done</div>
-                  <div class="kanban-cards"></div>
-                  <button class="kanban-add-card" contenteditable="false">+ Add Card</button>
-                  </div>
-                  <button class="kanban-add-column" title="Add another column" contenteditable="false">+</button>
-                  
-              </div><!--KANBAN_END_MARKER-->
-              <p><br></p>
-              `;
-              document.execCommand('insertHTML', false, kanbanHtml.trim().replace(/\s{2,}/g, ' '));
-          }
-      },
-      { name: 'Switch page', command: 'switch', description: 'Quickly jump to another page', disabled: true },
+      ...getCoreCommands(),
+      ...getAdvancedCommands()
     ];
     
     // Add a default placeholder action to disabled commands that don't have one

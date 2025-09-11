@@ -1,4 +1,4 @@
-// src/renderer/main.js
+// src/renderer/mainArea.js
 
 import { Tabs } from './tabs.js';
 import { Editor } from './editor/editor.js';
@@ -177,6 +177,9 @@ export class Main {
         const pane = this.findNodeByFileId(fileId, this.paneLayout);
         if (pane && pane.id === this.activePaneId) this.emit('noteSavedInActivePane', { project, fileId });
     });
+    // --- NEW: Listen for the split pane command from the editor ---
+    newEditor.on('splitPaneRight', ({ fileId }) => this.handleSplitPaneRight(fileId));
+
 
     const loadSuccess = await newEditor.loadNoteContent(project.path, fileId);
     if (loadSuccess) {
@@ -191,6 +194,71 @@ export class Main {
   }
 
   // --- Pane Management Methods (Internal) ---
+
+  /**
+   * NEW: Handles the logic for splitting the current file into a new pane on the right.
+   * @param {string} fileId The ID of the file/tab to move.
+   */
+  handleSplitPaneRight(fileId) {
+    const layoutCopy = JSON.parse(JSON.stringify(this.paneLayout));
+    const sourceNode = this.findNode(n => n.type === 'leaf' && n.fileIds.includes(fileId), layoutCopy);
+
+    if (!sourceNode) return;
+
+    if (sourceNode.fileIds.length <= 1) {
+        alert('This command only works when the current pane has more than one tab.');
+        return;
+    }
+
+    // 1. Remove file from the source node in our layout copy
+    sourceNode.fileIds = sourceNode.fileIds.filter(id => id !== fileId);
+    if (sourceNode.activeFileId === fileId) {
+        sourceNode.activeFileId = sourceNode.fileIds[sourceNode.fileIds.length - 1] || null;
+    }
+    
+    // 2. Define a recursive function to find the source node and replace it with a new group
+    const replaceAndSplitNode = (nodeToTransform) => {
+        if (nodeToTransform.id === sourceNode.id) {
+            // The node to transform is the one we modified earlier.
+            // Wrap it in a new horizontal group with the new pane.
+            return {
+                id: `group_${Date.now()}`,
+                type: 'group',
+                direction: 'row', // Horizontal split
+                children: [
+                    nodeToTransform, // The original pane (now with one less tab)
+                    {                // The new pane for the moved tab
+                        id: `pane_${Date.now()}`,
+                        type: 'leaf',
+                        fileIds: [fileId],
+                        activeFileId: fileId
+                    }
+                ],
+            };
+        }
+        // If it's a group, recurse on its children to find the node.
+        if (nodeToTransform.type === 'group') {
+            nodeToTransform.children = nodeToTransform.children.map(replaceAndSplitNode);
+        }
+        return nodeToTransform;
+    };
+
+    // 3. Flag that we're making an internal change to prevent conflicting re-renders
+    this.isInternalLayoutChange = true;
+
+    // 4. Apply the transformation to the entire layout structure
+    this.paneLayout = replaceAndSplitNode(layoutCopy);
+    
+    this._pruneAndCompactLayout();
+    
+    this.renderPanes({ openTabs: this.projectState.openTabs });
+
+    // 7. Update the global state to make the newly moved tab active
+    this.emit('setActiveTabRequested', { fileId: fileId });
+    
+    this.isInternalLayoutChange = false;
+  }
+
 
   _pruneAndCompactLayout(openFileIds) {
     const prune = (node, isTheRootNode) => {
