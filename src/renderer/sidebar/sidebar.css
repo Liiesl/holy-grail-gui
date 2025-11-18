@@ -54,7 +54,8 @@
     font-weight: 500;
 }
 
-#project-view-container, #history-view-container {
+#project-view-container,
+#history-view-container {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -77,6 +78,7 @@
 .sidebar-resizer.is-resizing {
     background-color: var(--color-accent);
 }
+
 /* --- END: Resizer Styles --- */
 
 
@@ -211,7 +213,8 @@
 }
 
 
-#file-tree, #history-list {
+#file-tree,
+#history-list {
     list-style: none;
     overflow-y: auto;
     margin: 0;
@@ -261,6 +264,7 @@
     background-color: var(--color-hover);
     border: 1px dashed var(--color-accent);
 }
+
 /* --- END: Drag & Drop Styles --- */
 
 
@@ -412,6 +416,7 @@
     font-size: 13px;
     color: var(--color-text);
 }
+
 .commit-hash {
     font-size: 11px;
     color: var(--color-secondary);

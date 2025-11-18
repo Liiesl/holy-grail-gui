@@ -418,7 +418,15 @@ export class ProjectView {
     const debounceDelay = 16; // ~60fps
     
     // Capture event data before debouncing (events are reused by browser)
-    const targetLi = e.target.closest('li[data-note-id]');
+    let targetLi = e.target.closest('li[data-note-id]');
+
+    // If hovering over the placeholder, use the stored target to prevent flickering
+    // This is crucial because the placeholder covers the gap, and hovering it would otherwise
+    // result in targetLi being null, causing the placeholder to be removed, then re-added, loop.
+    if (!targetLi && e.target.closest('.drop-placeholder')) {
+      targetLi = this.dropPlaceholderTarget;
+    }
+
     const clientY = e.clientY;
     
     if (timeSinceLastUpdate < debounceDelay) {
