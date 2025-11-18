@@ -232,6 +232,38 @@
     border-radius: 4px;
 }
 
+/* --- START: Drag & Drop Styles --- */
+#file-tree li.is-dragging {
+    opacity: 0.4;
+}
+
+#file-tree li .file-item-container.drop-target-child {
+    background-color: var(--color-hover);
+    outline: 1px solid var(--color-accent);
+}
+
+#file-tree li .file-item-container.drop-target-before {
+    border-top: 2px solid var(--color-accent);
+}
+
+#file-tree li .file-item-container.drop-target-after {
+    border-bottom: 2px solid var(--color-accent);
+}
+
+/* Style for the visual drop placeholder to match item height */
+#file-tree li.drop-placeholder {
+    /* An item's height is driven by its content: font-size (14px) + vertical padding (8px * 2) + line-height */
+    height: 34px; /* A typical item is ~34px high. */
+    box-sizing: border-box;
+    margin-bottom: 2px; /* Add a small margin for spacing */
+    border-radius: 4px;
+    list-style-type: none;
+    background-color: var(--color-hover);
+    border: 1px dashed var(--color-accent);
+}
+/* --- END: Drag & Drop Styles --- */
+
+
 .file-item-container {
     display: flex;
     align-items: center;

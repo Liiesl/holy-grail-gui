@@ -182,6 +182,27 @@ class App {
         this.sidebarWidth = width;
         this.updateSession();
     });
+
+    this.sidebar.on('noteMoved', async ({ project, noteId, newParentId }) => {
+        const result = await this.projectState.moveNote({ projectPath: project.path, noteId, newParentId });
+        if (!result.success) {
+            alert(`Error moving page: ${result.error || 'Unknown error'}`);
+            // The 'notes-changed' event will automatically refresh the tree on success.
+            // On failure, you might want to force a refresh to revert any optimistic UI changes,
+            // but our current implementation re-renders from state, so it's handled.
+        }
+    });
+    
+    this.sidebar.on('notesReordered', async ({ project, noteIds, parentId }) => {
+        const result = await this.projectState.reorderNotes({ 
+            projectPath: project.path, 
+            noteIds, 
+            parentId 
+        });
+        if (!result.success) {
+            alert(`Error reordering pages: ${result.error || 'Unknown error'}`);
+        }
+    });
     
     // --- View Switching & Modal connections ---
     this.sidebar.on('settingsClicked', () => this.showSettingsView());

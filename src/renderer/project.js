@@ -191,6 +191,30 @@ export class ProjectStateService {
     return result;
   }
 
+  async moveNote({ projectPath, noteId, newParentId }) {
+    const result = await window.api.moveNote({ projectPath, noteId, newParentId });
+    if (result.success) {
+      const notes = this._notesByProjectPath.get(projectPath);
+      if (notes) {
+        const noteToUpdate = notes.find(n => n.id === noteId);
+        if (noteToUpdate) {
+          noteToUpdate.parentId = newParentId;
+          this.emit('notes-changed', { projectPath, notes });
+        }
+      }
+    }
+    return result;
+  }
+
+  async reorderNotes({ projectPath, noteIds, parentId }) {
+    const result = await window.api.reorderNotes({ projectPath, noteIds, parentId });
+    if (result.success) {
+      // Reload notes to get the updated order
+      await this.loadNotesForProject(projectPath);
+    }
+    return result;
+  }
+
   // --- Tab management actions ---
   openTab({ projectPath, fileId }) {
     if (!this._openTabs.has(fileId)) {

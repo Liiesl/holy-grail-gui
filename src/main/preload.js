@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('api', {
   deleteNote: (projectPath, filename) => ipcRenderer.invoke('delete-note', { projectPath, filename }),
   createNote: (payload) => ipcRenderer.invoke('create-note', payload), // Pass the whole payload object
   renameNote: (projectPath, id, newName) => ipcRenderer.invoke('rename-note', { projectPath, id, newName }),
+  moveNote: (payload) => ipcRenderer.invoke('move-note', payload),
+  reorderNotes: (payload) => ipcRenderer.invoke('reorder-notes', payload),
 
   // Version History
   getNoteHistory: (projectPath, filename) => ipcRenderer.invoke('get-note-history', { projectPath, filename }),
@@ -40,10 +42,12 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   
-  // --- Gemini Chat ---
-  chatWithGemini: (prompt) => ipcRenderer.invoke('chat-with-gemini', prompt),
+  // --- Gemini Chat (Updated) ---
+  chatWithGemini: (messages) => ipcRenderer.invoke('chat-with-gemini', messages),
+  // --- ADD THIS LINE ---
+  onChatUpdate: (callback) => ipcRenderer.on('chat-update', (event, update) => callback(update)),
 
-  // --- NEW: App Info & Updates ---
+  // --- App Info & Updates ---
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),
   downloadUpdate: () => ipcRenderer.send('download-update'),

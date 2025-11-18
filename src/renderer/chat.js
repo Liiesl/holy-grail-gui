@@ -2,6 +2,8 @@
 export class Chat {
     constructor(container) {
         this.container = container;
+        this.history = []; // To store conversation history for the model
+        this.systemMessage = null; // To hold the element for status updates
         this.render();
         this.initElements();
         this.addEventListeners();
@@ -14,7 +16,7 @@ export class Chat {
             </div>
             <div class="chat-messages" id="chat-messages">
                 <div class="message gemini">
-                    <p>Hello! How can I help you today? Please set your Gemini API key in Settings to begin.</p>
+                    <p>Hello! How can I help you today? I can also search your notes to answer questions. Please set your Gemini API key in Settings to begin.</p>
                 </div>
             </div>
             <div class="chat-input-area">
@@ -38,6 +40,23 @@ export class Chat {
                 this.sendMessage();
             }
         });
+
+        // Listen for real-time updates from the main process
+        window.api.onChatUpdate(update => {
+            this.handleChatUpdate(update);
+        });
+    }
+
+    handleChatUpdate(update) {
+        if (!this.systemMessage) return;
+
+        const p = this.systemMessage.querySelector('p');
+        if (update.type === 'tool_start') {
+            const query = update.tool.args.query;
+            p.textContent = `Searching notes for: "${query}"`;
+        } else if (update.type === 'tool_end') {
+            p.textContent = 'Analyzing search results...';
+        }
     }
 
     async sendMessage() {
@@ -45,27 +64,31 @@ export class Chat {
         if (!messageText) return;
 
         this.addMessage(messageText, 'user');
+        this.history.push({ role: 'user', parts: [{ text: messageText }] });
+
         this.inputEl.value = '';
         this.inputEl.focus();
         this.sendBtn.disabled = true;
 
-        const loadingMessage = this.addMessage('Thinking...', 'loading');
+        this.systemMessage = this.addMessage('Thinking...', 'loading');
 
         try {
-            const result = await window.api.chatWithGemini(messageText);
+            const result = await window.api.chatWithGemini(this.history);
 
-            // Remove loading message
-            loadingMessage.remove();
+            // Remove the status message
+            this.systemMessage.remove();
+            this.systemMessage = null;
 
             if (result.success) {
                 this.addMessage(result.response, 'gemini');
+                this.history.push({ role: 'model', parts: [{ text: result.response }] });
             } else {
                 // Display user-friendly error from main process
                 this.addMessage(result.error, 'error');
             }
         } catch (e) {
             // Handle unexpected errors during IPC call itself
-            loadingMessage.remove();
+            if (this.systemMessage) this.systemMessage.remove();
             this.addMessage('An unexpected error occurred. Please check the developer console.', 'error');
             console.error('Chat IPC error:', e);
         } finally {
@@ -84,6 +107,6 @@ export class Chat {
         this.messagesContainer.appendChild(messageEl);
         // Scroll to bottom
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        return messageEl; // Return element to allow for its removal
+        return messageEl; // Return element to allow for its manipulation
     }
 }

@@ -382,6 +382,33 @@ async function renameNote({ projectPath, id, newName }) {
     return { success: true };
 }
 
+async function moveNote({ projectPath, noteId, newParentId }) {
+    if (!(await isPathInProjects(projectPath))) throw new Error("Access denied.");
+
+    const pagesConfig = await readPagesConfig(projectPath);
+
+    if (!pagesConfig[noteId]) {
+        return { success: false, error: 'Page to move not found.' };
+    }
+    if (newParentId && !pagesConfig[newParentId]) {
+        return { success: false, error: 'Target parent page not found.' };
+    }
+
+    // Circular dependency check
+    let currentId = newParentId;
+    while (currentId) {
+        if (currentId === noteId) {
+            return { success: false, error: 'Cannot move a page into one of its own children.' };
+        }
+        currentId = pagesConfig[currentId] ? pagesConfig[currentId].parentId : null;
+    }
+
+    pagesConfig[noteId].parentId = newParentId;
+    await savePagesConfig(projectPath, pagesConfig);
+
+    return { success: true };
+}
+
 
 async function deleteNote({ projectPath, filename }) {
     try {
@@ -489,6 +516,7 @@ module.exports = {
   saveNote,
   createNote,
   renameNote,
+  moveNote,
   deleteNote,
   getNoteHistory,
   getNoteVersionContent,

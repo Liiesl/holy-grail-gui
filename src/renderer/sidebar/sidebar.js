@@ -65,6 +65,8 @@ export class Sidebar {
     this.projectView.on('renameNote', (data) => this.emit('renameNote', data));
     this.projectView.on('deleteNoteRequested', (data) => this.emit('deleteNoteRequested', data));
     this.projectView.on('searchInitiated', (data) => this.emit('searchInitiated', data));
+    this.projectView.on('noteMoved', (data) => this.emit('noteMoved', data)); // Bubble up the move event
+    this.projectView.on('notesReordered', (data) => this.emit('notesReordered', data)); // Bubble up the reorder event
     this.historyView.on('versionSelected', (data) => this.emit('versionSelected', data));
   }
 
