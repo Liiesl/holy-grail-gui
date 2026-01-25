@@ -259,6 +259,7 @@ async function getNotes(projectPath) {
             path: path.join(projectPath, id),
             parentId: data.parentId,
             icon: data.icon,
+            order: data.order // <-- ADDED: Return order property
         }));
         
     return notes;
@@ -409,6 +410,36 @@ async function moveNote({ projectPath, noteId, newParentId }) {
     return { success: true };
 }
 
+// --- NEW FUNCTION for Reordering ---
+async function reorderNotes({ projectPath, noteIds, parentId }) {
+    if (!(await isPathInProjects(projectPath))) throw new Error("Access denied.");
+
+    const pagesConfig = await readPagesConfig(projectPath);
+    let changed = false;
+
+    // noteIds contains the IDs in the new sorted order
+    noteIds.forEach((id, index) => {
+        if (pagesConfig[id]) {
+            // Update order based on array index
+            if (pagesConfig[id].order !== index) {
+                pagesConfig[id].order = index;
+                changed = true;
+            }
+            // Update parentId if provided (handles reordering within a new parent context)
+            if (parentId !== undefined && pagesConfig[id].parentId !== parentId) {
+                pagesConfig[id].parentId = parentId;
+                changed = true;
+            }
+        }
+    });
+
+    if (changed) {
+        await savePagesConfig(projectPath, pagesConfig);
+    }
+
+    return { success: true };
+}
+
 
 async function deleteNote({ projectPath, filename }) {
     try {
@@ -517,6 +548,7 @@ module.exports = {
   createNote,
   renameNote,
   moveNote,
+  reorderNotes, // <-- ADDED EXPORT
   deleteNote,
   getNoteHistory,
   getNoteVersionContent,
