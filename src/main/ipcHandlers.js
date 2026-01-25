@@ -79,69 +79,13 @@ function registerIpcHandlers(sessionRef) {
     return saveSettings(settings);
   });
   
-  // --- UPGRADED: Gemini Chat Handler with Tool Calling ---
+  // --- UPGRADED: Gemini Chat Handler ---
+  // The logic is now centralized in gemini.js
   ipcMain.handle('chat-with-gemini', async (event, messages) => {
     try {
       const settings = await readSettings();
-      let currentMessages = messages;
-      const maxTurns = 5; // Safety brake for tool-use loops
-
-      for (let i = 0; i < maxTurns; i++) {
-        const result = await continueChat(currentMessages, settings.geminiApiKey);
-        const response = result.response;
-        const candidate = response.candidates[0];
-
-        // Check for function call
-        const functionCalls = candidate.content.parts.filter(part => part.functionCall);
-
-        if (functionCalls.length > 0) {
-          // Add the model's tool request to history
-          currentMessages.push(candidate.content);
-          
-          const call = functionCalls[0].functionCall; // Handle one call at a time for simplicity
-          
-          if (call.name === 'search_notes') {
-            const query = call.args.query;
-            event.sender.send('chat-update', { type: 'tool_start', tool: { name: 'search_notes', args: { query } } });
-            
-            const searchResults = searchManager.performSearch(query, {});
-            
-            let searchResultText;
-            if (searchResults.length === 0) {
-              searchResultText = `No relevant information found in the notes for the query: "${query}"`;
-            } else {
-              const formattedResults = searchResults.slice(0, 5).map(r => {
-                  let context = `In project "${r.metadata.projectName}"`;
-                  if (r.metadata.noteName) context += `, note "${r.metadata.noteName}"`;
-                  if (r.metadata.lineNumber) context += ` on line ${r.metadata.lineNumber}`;
-                  return `- ${context}:\n  > "${r.text.trim()}"`;
-              }).join('\n\n');
-              searchResultText = `Found ${searchResults.length} results. Here are the top ${Math.min(5, searchResults.length)}:\n\n${formattedResults}`;
-            }
-
-            event.sender.send('chat-update', { type: 'tool_end' });
-            
-            // Add the tool's response to history
-            currentMessages.push({
-              role: 'tool',
-              parts: [{
-                functionResponse: {
-                  name: 'search_notes',
-                  response: { content: searchResultText },
-                }
-              }]
-            });
-            // Continue the loop to get the final text response from the model
-            continue;
-          }
-        } else {
-          // If no function call, it's a text response. We are done.
-          const text = candidate.content.parts.map(p => p.text).join('');
-          return { success: true, response: text };
-        }
-      }
-      return { success: false, error: 'AI took too many steps to generate a response.' };
-
+      // We pass 'event.sender' so gemini.js can send 'tool_start' updates to the UI
+      return await continueChat(messages, settings, event.sender);
     } catch (error) {
       return { success: false, error: error.message };
     }

@@ -80,8 +80,17 @@ export class Chat {
             this.systemMessage = null;
 
             if (result.success) {
-                this.addMessage(result.response, 'gemini');
-                this.history.push({ role: 'model', parts: [{ text: result.response }] });
+                // === FIX STARTS HERE ===
+                // Only add to history if the response actually has text
+                if (result.response && result.response.trim().length > 0) {
+                    this.addMessage(result.response, 'gemini');
+                    this.history.push({ role: 'model', parts: [{ text: result.response }] });
+                } else {
+                    // Handle empty response gracefully (e.g., model got confused)
+                    // Do NOT push to history
+                    this.addMessage("(No text response received from Gemini)", 'error');
+                }
+                // === FIX ENDS HERE ===
             } else {
                 // Display user-friendly error from main process
                 this.addMessage(result.error, 'error');
