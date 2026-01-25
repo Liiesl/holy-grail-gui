@@ -17,9 +17,11 @@ export class ProjectView {
     this.creatingWithParentId = null; // To store parentId during creation
     this.notes = []; // A local cache of the raw note data for easy lookup
     this.draggedNoteId = null; // ID of the note being dragged
-    this.dropPlaceholder = null; // Placeholder element showing drop position
-    this.dropPlaceholderInsertBefore = false; // Whether placeholder is before or after target
-    this.dropPlaceholderTargetId = null; // ID of target note (more stable than element reference)
+    
+    // -- Drag & Drop State --
+    this.dropPlaceholder = null; 
+    this.dropAction = null; // 'before', 'after', 'child'
+    this.dropTargetId = null;
     this.dragOverTimeout = null; // Timeout for debouncing dragOver
     this.lastDragOverTime = 0; // Timestamp of last dragOver processing
 
@@ -124,13 +126,10 @@ export class ProjectView {
    * @param {Array} notes - The array of note objects for the current project.
    */
   renderNotes(notes) {
-    // --- START: MODIFICATION ---
-    // Preserve the set of expanded notes before re-rendering
     const expandedNoteIds = new Set();
     this.fileTree.querySelectorAll('li.expanded[data-note-id]').forEach(li => {
         expandedNoteIds.add(li.dataset.noteId);
     });
-    // --- END: MODIFICATION ---
 
     this.notes = notes; // Update the local cache for getFileName()
     this.fileTree.innerHTML = ''; // Clear current tree
@@ -165,8 +164,7 @@ export class ProjectView {
     rootNotes.sort((a, b) => (a.order || 0) - (b.order || 0));
 
     this.renderNoteTree(rootNotes, this.fileTree);
-    // --- START: MODIFICATION ---
-    // Restore the expanded state
+    
     if (expandedNoteIds.size > 0) {
         expandedNoteIds.forEach(noteId => {
             const li = this.fileTree.querySelector(`li[data-note-id="${noteId}"]`);
@@ -177,7 +175,6 @@ export class ProjectView {
             }
         });
     }
-    // --- END: MODIFICATION ---
 
     this.updateActiveNoteUI();
   }
@@ -313,333 +310,158 @@ export class ProjectView {
   handleDragStart(e) {
     const li = e.target.closest('li[data-note-id]');
     if (!li) return;
+    
+    // Prevent dragging if editing
+    if (li.classList.contains('is-editing')) {
+        e.preventDefault();
+        return;
+    }
+
     this.draggedNoteId = li.dataset.noteId;
     e.dataTransfer.effectAllowed = 'move';
-    // Use a timeout to allow the browser to create the drag image before applying the class
+    e.dataTransfer.setData('text/plain', this.draggedNoteId); // Helper for some browsers
+    
+    // Defer class addition for drag image generation
     setTimeout(() => li.classList.add('is-dragging'), 0);
   }
 
   removeDropPlaceholder() {
-    if (this.dropPlaceholder && this.dropPlaceholder.parentNode) {
-      console.log('[Placeholder] Removing placeholder', {
-        targetId: this.dropPlaceholderTargetId,
-        insertBefore: this.dropPlaceholderInsertBefore
-      });
-      this.dropPlaceholder.parentNode.removeChild(this.dropPlaceholder);
+    if (this.dropPlaceholder) {
+      this.dropPlaceholder.remove();
       this.dropPlaceholder = null;
-      this.dropPlaceholderTarget = null;
-      this.dropPlaceholderTargetId = null;
     }
+    // Clean up all hover classes
+    this.fileTree.querySelectorAll('.drop-target-child, .drop-target-before, .drop-target-after')
+        .forEach(el => el.classList.remove('drop-target-child', 'drop-target-before', 'drop-target-after'));
+    
+    this.dropAction = null;
+    this.dropTargetId = null;
   }
 
-  insertDropPlaceholder(targetLi, insertBefore) {
+  /**
+   * Visually indicates where the item will land.
+   * Inspiration from Zen: visual indentation levels.
+   */
+  insertDropPlaceholder(targetLi, action) {
     const targetId = targetLi.dataset.noteId;
-    
-    // Check if placeholder is already in the correct position (using ID for stability)
-    // Also verify the placeholder is actually in the DOM and in the right position
-    if (this.dropPlaceholder && 
-        this.dropPlaceholderTargetId === targetId && 
-        this.dropPlaceholderInsertBefore === insertBefore &&
-        this.dropPlaceholder.parentNode) {
-      // Verify it's actually in the right position in the DOM
-      const parentUl = targetLi.parentNode;
-      if (this.dropPlaceholder.parentNode === parentUl) {
-        // Check if placeholder is in the correct position relative to targetLi
-        const placeholderIsBefore = this.dropPlaceholder.nextSibling === targetLi;
-        const placeholderIsAfter = targetLi.nextSibling === this.dropPlaceholder;
-        
-        if ((insertBefore && placeholderIsBefore) || (!insertBefore && placeholderIsAfter)) {
-          // Placeholder is already in the right place, no need to update
-          console.log('[Placeholder] Skipping update - already in correct position', {
-            targetId,
-            insertBefore,
-            currentTargetId: this.dropPlaceholderTargetId,
-            currentInsertBefore: this.dropPlaceholderInsertBefore,
-            placeholderIsBefore,
-            placeholderIsAfter
-          });
-          return;
-        }
-      }
+
+    // Optimization: Don't re-render if nothing changed
+    if (this.dropPlaceholder && this.dropTargetId === targetId && this.dropAction === action) {
+        return;
     }
-    
-    console.log('[Placeholder] Inserting placeholder', {
-      targetId,
-      insertBefore,
-      hadPlaceholder: !!this.dropPlaceholder,
-      oldTargetId: this.dropPlaceholderTargetId,
-      oldInsertBefore: this.dropPlaceholderInsertBefore
-    });
-    
-    // Remove existing placeholder if it exists
-    if (this.dropPlaceholder && this.dropPlaceholder.parentNode) {
-      console.log('[Placeholder] Removing old placeholder');
-      this.dropPlaceholder.parentNode.removeChild(this.dropPlaceholder);
-    }
-    
-    // Create placeholder element
+
+    // Clean up old
+    this.removeDropPlaceholder();
+
+    this.dropTargetId = targetId;
+    this.dropAction = action;
+
     const placeholder = document.createElement('li');
     placeholder.className = 'drop-placeholder';
-    placeholder.setAttribute('data-placeholder', 'true');
-    
-    // Find the parent ul (could be file-tree or nested-notes)
+    // Style matches typical item height
+    placeholder.style.height = '34px'; 
+    placeholder.style.borderRadius = '4px';
+    placeholder.style.backgroundColor = 'var(--color-hover)';
+    placeholder.style.border = '1px dashed var(--color-accent)';
+    placeholder.style.boxSizing = 'border-box';
+    placeholder.style.marginBottom = '2px';
+    placeholder.style.transition = 'margin 0.2s ease'; // Smooth shift for indentation
+
     const parentUl = targetLi.parentNode;
-    
-    if (insertBefore) {
-      parentUl.insertBefore(placeholder, targetLi);
-    } else {
-      // Insert after targetLi
-      const nextSibling = targetLi.nextSibling;
-      if (nextSibling) {
-        parentUl.insertBefore(placeholder, nextSibling);
-      } else {
-        parentUl.appendChild(placeholder);
-      }
+    const container = targetLi.querySelector('.file-item-container');
+
+    if (action === 'before') {
+        container.classList.add('drop-target-before');
+        parentUl.insertBefore(placeholder, targetLi);
+    } 
+    else if (action === 'after') {
+        container.classList.add('drop-target-after');
+        // Insert after target
+        if (targetLi.nextSibling) {
+            parentUl.insertBefore(placeholder, targetLi.nextSibling);
+        } else {
+            parentUl.appendChild(placeholder);
+        }
+    } 
+    else if (action === 'child') {
+        container.classList.add('drop-target-child');
+        
+        // VISUAL LEVEL: Insert AFTER the target, but add margin to simulate nesting.
+        // This simulates the "Zen" feel where you see exactly where it lands hierarchy-wise.
+        if (targetLi.nextSibling) {
+            parentUl.insertBefore(placeholder, targetLi.nextSibling);
+        } else {
+            parentUl.appendChild(placeholder);
+        }
+        
+        // Calculate indent: 
+        // 1. If we are inserting as child, visually it looks like it belongs to the target's UL (which has 20px padding).
+        // 2. Since we are physically in the parent UL, we fake the indent.
+        placeholder.style.marginLeft = '20px';
     }
-    
+
     this.dropPlaceholder = placeholder;
-    this.dropPlaceholderInsertBefore = insertBefore;
-    this.dropPlaceholderTarget = targetLi; // Store reference to target note
-    this.dropPlaceholderTargetId = targetId; // Store ID for stable comparison
-    
-    console.log('[Placeholder] Placeholder inserted successfully', {
-      targetId,
-      insertBefore,
-      parentNode: parentUl.className
-    });
   }
 
   handleDragOver(e) {
-    e.preventDefault();
-    
-    // Debounce: only process dragOver every 16ms (~60fps) to reduce sensitivity
+    e.preventDefault(); // Necessary to allow dropping
+
+    // Debounce high-frequency events
     const now = performance.now();
-    const timeSinceLastUpdate = now - this.lastDragOverTime;
-    const debounceDelay = 16; // ~60fps
-    
-    // Capture event data before debouncing (events are reused by browser)
-    let targetLi = e.target.closest('li[data-note-id]');
-
-    // If hovering over the placeholder, use the stored target to prevent flickering
-    // This is crucial because the placeholder covers the gap, and hovering it would otherwise
-    // result in targetLi being null, causing the placeholder to be removed, then re-added, loop.
-    if (!targetLi && e.target.closest('.drop-placeholder')) {
-      targetLi = this.dropPlaceholderTarget;
-    }
-
-    const clientY = e.clientY;
-    
-    if (timeSinceLastUpdate < debounceDelay) {
-      // Clear existing timeout and set a new one
-      if (this.dragOverTimeout) {
-        clearTimeout(this.dragOverTimeout);
-      }
-      
-      // Store the event data for later processing
-      this.dragOverTimeout = setTimeout(() => {
-        this.processDragOver(targetLi, clientY);
-        this.lastDragOverTime = performance.now();
-        this.dragOverTimeout = null;
-      }, debounceDelay - timeSinceLastUpdate);
-      
-      return;
-    }
-    
-    // Process immediately if enough time has passed
-    this.processDragOver(targetLi, clientY);
+    if (now - this.lastDragOverTime < 16) return;
     this.lastDragOverTime = now;
+
+    let targetLi = e.target.closest('li[data-note-id]');
+    
+    // If hovering the placeholder itself, find the nearest note to keep context
+    if (!targetLi && e.target.closest('.drop-placeholder')) {
+        const placeholder = e.target.closest('.drop-placeholder');
+        targetLi = placeholder.previousElementSibling || placeholder.nextElementSibling;
+    }
+
+    if (!targetLi || !this.draggedNoteId) {
+        // Allow dropping into empty space (root) if needed, otherwise ignore
+        return;
+    }
+
+    const targetId = targetLi.dataset.noteId;
+    const draggedNote = this.notes.find(n => n.id === this.draggedNoteId);
+    
+    // Prevent dropping on self or children
+    if (targetId === this.draggedNoteId || this.isDescendant(this.draggedNoteId, targetId)) {
+        this.removeDropPlaceholder();
+        return;
+    }
+
+    const rect = targetLi.getBoundingClientRect();
+    // Use the content container for cleaner height calculation (ignoring nested lists)
+    const container = targetLi.querySelector('.file-item-container');
+    const containerRect = container.getBoundingClientRect();
+    
+    const relativeY = e.clientY - containerRect.top;
+    const height = containerRect.height;
+    
+    // Define zones: Top 25%, Bottom 25%, Middle 50%
+    // Middle = Make Child
+    const topZone = height * 0.25;
+    const bottomZone = height * 0.75;
+
+    let action = '';
+
+    if (relativeY < topZone) {
+        action = 'before';
+    } else if (relativeY > bottomZone) {
+        action = 'after';
+    } else {
+        action = 'child';
+    }
+
+    this.insertDropPlaceholder(targetLi, action);
   }
 
-  processDragOver(targetLi, clientY) {
-    
-    // Clear all drop indicators
-    this.fileTree.querySelectorAll('.drop-target-child').forEach(el => el.classList.remove('drop-target-child'));
-    this.fileTree.querySelectorAll('.drop-target-before').forEach(el => el.classList.remove('drop-target-before'));
-    this.fileTree.querySelectorAll('.drop-target-after').forEach(el => el.classList.remove('drop-target-after'));
-    
-    if (targetLi && this.draggedNoteId) {
-        const targetId = targetLi.dataset.noteId;
-        const draggedNote = this.notes.find(n => n.id === this.draggedNoteId);
-        const targetNote = this.notes.find(n => n.id === targetId);
-        
-        if (!draggedNote || !targetNote) return;
-        
-        const isDescendant = this.isDescendant(this.draggedNoteId, targetId);
-        
-        if (targetId === this.draggedNoteId || isDescendant) {
-            // Remove placeholder if invalid drop
-            this.removeDropPlaceholder();
-            return; // Can't drop on self or descendant
-        }
-        
-        // Get element position BEFORE any DOM manipulation (placeholder can shift elements)
-        const rect = targetLi.getBoundingClientRect();
-        const container = targetLi.querySelector('.file-item-container');
-        const relativeY = clientY - rect.top;
-        const height = rect.height;
-        
-        // If placeholder exists and is for this target, account for its height in calculations
-        // This prevents zone switching when placeholder is inserted/removed
-        let adjustedHeight = height;
-        let adjustedRelativeY = relativeY;
-        if (this.dropPlaceholder && 
-            this.dropPlaceholderTargetId === targetId && 
-            this.dropPlaceholder.parentNode === targetLi.parentNode) {
-          // Placeholder exists for this target - account for it in position calculations
-          const placeholderHeight = this.dropPlaceholder.offsetHeight || height;
-          if (this.dropPlaceholderInsertBefore) {
-            // Placeholder is before target, so target is shifted down
-            adjustedRelativeY = relativeY + placeholderHeight;
-            adjustedHeight = height + placeholderHeight;
-          } else {
-            // Placeholder is after target, doesn't affect relativeY calculation
-            // But we should account for it in threshold calculations
-          }
-        }
-        
-        // Add small buffer zones to prevent flickering at boundaries
-        const topThreshold = adjustedHeight * 0.3; // Top 30% for reorder before
-        const bottomThreshold = adjustedHeight * 0.7; // Bottom 30% for reorder after
-        const topBuffer = adjustedHeight * 0.05; // 5% buffer zone
-        const bottomBuffer = adjustedHeight * 0.05; // 5% buffer zone
-        
-        // Check if they're siblings (same parent)
-        const areSiblings = draggedNote.parentId === targetNote.parentId;
-        
-        // Determine zone with hysteresis to prevent flickering
-        // Use adjusted values that account for placeholder position
-        let currentZone = null;
-        const wasSameTarget = this.dropPlaceholderTargetId === targetId;
-        const hadPlaceholder = !!this.dropPlaceholder && this.dropPlaceholder.parentNode;
-        
-        // Use original relativeY for zone detection (not adjusted) since we want mouse position relative to target
-        // But use adjusted thresholds when placeholder exists
-        const zoneRelativeY = relativeY; // Always use original relativeY for zone detection
-        
-        if (wasSameTarget && hadPlaceholder) {
-          // If we're already showing placeholder for this target, use stronger hysteresis
-          if (this.dropPlaceholderInsertBefore) {
-            // Currently showing "before" - only switch if clearly in another zone
-            // Use larger buffer to prevent flickering
-            // Since placeholder is before, we need to check against original height thresholds
-            if (zoneRelativeY > (height * 0.7) + (bottomBuffer * 2)) {
-              currentZone = 'after';
-            } else if (zoneRelativeY > (height * 0.3) + (topBuffer * 3)) {
-              // Stay in before zone with larger buffer
-              currentZone = 'before';
-            } else {
-              currentZone = 'before';
-            }
-          } else if (this.dropPlaceholderTargetId) {
-            // Currently showing "after" - only switch if clearly in another zone
-            if (zoneRelativeY < (height * 0.3) - (topBuffer * 2)) {
-              currentZone = 'before';
-            } else if (zoneRelativeY < (height * 0.7) - (bottomBuffer * 3)) {
-              // Stay in after zone with larger buffer
-              currentZone = 'after';
-            } else {
-              currentZone = 'after';
-            }
-          } else {
-            // Fallback to normal thresholds
-            if (zoneRelativeY < height * 0.3) {
-              currentZone = 'before';
-            } else if (zoneRelativeY > height * 0.7) {
-              currentZone = 'after';
-            } else {
-              currentZone = 'middle';
-            }
-          }
-        } else {
-          // New target or no placeholder, use normal thresholds with original height
-          if (zoneRelativeY < height * 0.3) {
-            currentZone = 'before';
-          } else if (zoneRelativeY > height * 0.7) {
-            currentZone = 'after';
-          } else {
-            currentZone = 'middle';
-          }
-        }
-        
-        console.log('[DragOver] Zone calculation', {
-          targetId,
-          relativeY: relativeY.toFixed(1),
-          height: height.toFixed(1),
-          topThreshold: topThreshold.toFixed(1),
-          bottomThreshold: bottomThreshold.toFixed(1),
-          wasSameTarget,
-          previousZone: this.dropPlaceholderInsertBefore ? 'before' : (this.dropPlaceholderTargetId ? 'after' : 'none'),
-          currentZone,
-          areSiblings,
-          placeholderExists: !!this.dropPlaceholder,
-          placeholderTargetId: this.dropPlaceholderTargetId
-        });
-        
-        if (currentZone === 'before') {
-            // Top area: reorder before
-            container.classList.add('drop-target-before');
-            // Only show placeholder for reordering (not for indenting)
-            if (areSiblings) {
-                this.insertDropPlaceholder(targetLi, true);
-            } else {
-                // Only remove if we had a placeholder for this target
-                if (this.dropPlaceholderTargetId === targetId) {
-                    this.removeDropPlaceholder();
-                }
-            }
-        } else if (currentZone === 'after') {
-            // Bottom area: reorder after
-            container.classList.add('drop-target-after');
-            // Only show placeholder for reordering (not for indenting)
-            if (areSiblings) {
-                this.insertDropPlaceholder(targetLi, false);
-            } else {
-                // Only remove if we had a placeholder for this target
-                if (this.dropPlaceholderTargetId === targetId) {
-                    this.removeDropPlaceholder();
-                }
-            }
-        } else {
-            // Middle area: indent (move as child)
-            container.classList.add('drop-target-child');
-            // Only remove placeholder if we're on the same target (entering middle zone)
-            // But add a small delay/hysteresis to prevent flickering
-            if (this.dropPlaceholderTargetId === targetId) {
-                // Only remove if we're clearly in the middle zone (not near boundaries)
-                const middleZoneStart = height * 0.3;
-                const middleZoneEnd = height * 0.7;
-                const middleBuffer = height * 0.1; // 10% buffer
-                
-                if (relativeY > middleZoneStart + middleBuffer && relativeY < middleZoneEnd - middleBuffer) {
-                    console.log('[DragOver] Removing placeholder - clearly in middle zone', { 
-                        targetId, 
-                        relativeY: relativeY.toFixed(1),
-                        middleZoneStart: (middleZoneStart + middleBuffer).toFixed(1),
-                        middleZoneEnd: (middleZoneEnd - middleBuffer).toFixed(1)
-                    });
-                    this.removeDropPlaceholder();
-                } else {
-                    // Near boundary, keep placeholder to prevent flickering
-                    console.log('[DragOver] Keeping placeholder - near boundary', {
-                        targetId,
-                        relativeY: relativeY.toFixed(1)
-                    });
-                }
-            }
-        }
-    } else {
-        // No valid target, remove placeholder
-        this.removeDropPlaceholder();
-    }
-  }
-  
   handleDragLeave(e) {
-      const relatedTarget = e.relatedTarget;
-      // Only remove the class if leaving the file tree area entirely
-      if (!this.fileTree.contains(relatedTarget)) {
-          this.fileTree.querySelectorAll('.drop-target-child').forEach(el => el.classList.remove('drop-target-child'));
-          this.fileTree.querySelectorAll('.drop-target-before').forEach(el => el.classList.remove('drop-target-before'));
-          this.fileTree.querySelectorAll('.drop-target-after').forEach(el => el.classList.remove('drop-target-after'));
+      // Logic to remove placeholder if leaving the tree entirely
+      if (!this.fileTree.contains(e.relatedTarget)) {
           this.removeDropPlaceholder();
       }
   }
@@ -647,163 +469,73 @@ export class ProjectView {
   handleDrop(e) {
     e.preventDefault();
     
-    // If dropping on placeholder, use the stored target
-    const placeholder = e.target.closest('li.drop-placeholder');
-    let dropTarget = e.target.closest('li[data-note-id]');
-    
-    // Store placeholder info before removing it
-    const wasDroppingOnPlaceholder = placeholder && this.dropPlaceholder;
-    const wasInsertBefore = this.dropPlaceholderInsertBefore;
-    const placeholderTarget = this.dropPlaceholderTarget;
-    
-    // If we dropped on the placeholder, use the stored target note
-    if (wasDroppingOnPlaceholder && placeholderTarget && !dropTarget) {
-      dropTarget = placeholderTarget;
+    // If we have a valid calculated action from DragOver, use it.
+    // This is more reliable than recalculating on drop because of layout shifts.
+    if (!this.dropAction || !this.dropTargetId || !this.draggedNoteId) {
+        this.removeDropPlaceholder();
+        return;
     }
-    
-    // Remove placeholder before processing drop
-    this.removeDropPlaceholder();
-    
-    if (!dropTarget || !this.draggedNoteId) return;
-    
-    const targetId = dropTarget.dataset.noteId;
+
+    const action = this.dropAction;
+    const targetId = this.dropTargetId;
     const draggedNote = this.notes.find(n => n.id === this.draggedNoteId);
     const targetNote = this.notes.find(n => n.id === targetId);
-    
+
+    // Clean up UI immediately
+    this.removeDropPlaceholder();
+    this.fileTree.querySelectorAll('.is-dragging').forEach(el => el.classList.remove('is-dragging'));
+
     if (!draggedNote || !targetNote) return;
-    
-    const isDescendant = this.isDescendant(this.draggedNoteId, targetId);
-    if (targetId === this.draggedNoteId || isDescendant) {
-        return; // Invalid drop
-    }
-    
-    // Check if they're siblings (same parent)
-    const areSiblings = draggedNote.parentId === targetNote.parentId;
-    
-    // Determine drop action: 'before', 'after', or 'indent'
-    let dropAction = 'indent'; // Default to indent
-    
-    if (wasDroppingOnPlaceholder) {
-      // Use stored position from placeholder
-      dropAction = wasInsertBefore ? 'before' : 'after';
-    } else {
-      // Calculate from mouse position
-      const rect = dropTarget.getBoundingClientRect();
-      const relativeY = e.clientY - rect.top;
-      const height = rect.height;
-      const topThreshold = height * 0.3; // Top 30% for reorder before
-      const bottomThreshold = height * 0.7; // Bottom 30% for reorder after
-      
-      if (relativeY < topThreshold) {
-        dropAction = 'before';
-      } else if (relativeY > bottomThreshold) {
-        dropAction = 'after';
-      } else {
-        dropAction = 'indent';
-      }
-    }
-    
-    if (dropAction === 'before') {
-        // Top area: reorder before
-        if (areSiblings) {
-            // Get all siblings in current order
-            const siblings = this.notes
-                .filter(n => n.parentId === draggedNote.parentId)
-                .sort((a, b) => (a.order || 0) - (b.order || 0));
-            
-            // Remove dragged note from siblings
-            const siblingsWithoutDragged = siblings.filter(n => n.id !== this.draggedNoteId);
-            
-            // Find target index
-            const targetIndex = siblingsWithoutDragged.findIndex(n => n.id === targetId);
-            
-            // Insert dragged note before target
-            const newOrder = [...siblingsWithoutDragged];
-            newOrder.splice(targetIndex, 0, draggedNote);
-            
-            const noteIds = newOrder.map(n => n.id);
-            this.emit('notesReordered', {
-                project: this.currentProject,
-                noteIds: noteIds,
-                parentId: draggedNote.parentId
-            });
-        } else {
-            // Not siblings, but top area - treat as reorder before (move to same parent as target, then reorder)
-            // First move to target's parent, then reorder
-            const targetSiblings = this.notes
-                .filter(n => n.parentId === targetNote.parentId)
-                .sort((a, b) => (a.order || 0) - (b.order || 0));
-            
-            const targetIndex = targetSiblings.findIndex(n => n.id === targetId);
-            const newOrder = [...targetSiblings];
-            newOrder.splice(targetIndex, 0, draggedNote);
-            
-            // First move, then the moveNote handler will handle reordering
-            this.emit('noteMoved', { 
-                project: this.currentProject, 
-                noteId: this.draggedNoteId, 
-                newParentId: targetNote.parentId 
-            });
-            
-            // Note: We can't easily reorder immediately after moving because moveNote
-            // will reload notes. The order will be set correctly in moveNote.
-        }
-    } else if (dropAction === 'after') {
-        // Bottom area: reorder after
-        if (areSiblings) {
-            // Get all siblings in current order
-            const siblings = this.notes
-                .filter(n => n.parentId === draggedNote.parentId)
-                .sort((a, b) => (a.order || 0) - (b.order || 0));
-            
-            // Remove dragged note from siblings
-            const siblingsWithoutDragged = siblings.filter(n => n.id !== this.draggedNoteId);
-            
-            // Find target index
-            const targetIndex = siblingsWithoutDragged.findIndex(n => n.id === targetId);
-            
-            // Insert dragged note after target
-            const newOrder = [...siblingsWithoutDragged];
-            newOrder.splice(targetIndex + 1, 0, draggedNote);
-            
-            const noteIds = newOrder.map(n => n.id);
-            this.emit('notesReordered', {
-                project: this.currentProject,
-                noteIds: noteIds,
-                parentId: draggedNote.parentId
-            });
-        } else {
-            // Not siblings, but bottom area - treat as reorder after (move to same parent as target, then reorder)
-            this.emit('noteMoved', { 
-                project: this.currentProject, 
-                noteId: this.draggedNoteId, 
-                newParentId: targetNote.parentId 
-            });
-        }
-    } else {
-        // Middle area: indent (move as child)
+
+    if (action === 'child') {
+        // Move as child
         this.emit('noteMoved', { 
             project: this.currentProject, 
             noteId: this.draggedNoteId, 
             newParentId: targetId 
         });
+    } 
+    else if (action === 'before' || action === 'after') {
+        // Move as sibling
+        const newParentId = targetNote.parentId;
+        const areSiblings = draggedNote.parentId === newParentId;
+
+        if (areSiblings) {
+            // Optimistic reordering
+            const siblings = this.notes
+                .filter(n => n.parentId === newParentId)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            const siblingsWithoutDragged = siblings.filter(n => n.id !== this.draggedNoteId);
+            const targetIndex = siblingsWithoutDragged.findIndex(n => n.id === targetId);
+            
+            const insertionIndex = action === 'before' ? targetIndex : targetIndex + 1;
+            const newOrder = [...siblingsWithoutDragged];
+            newOrder.splice(insertionIndex, 0, draggedNote);
+            
+            this.emit('notesReordered', {
+                project: this.currentProject,
+                noteIds: newOrder.map(n => n.id),
+                parentId: newParentId
+            });
+        } else {
+            // Moving to a new parent (specifically, the target's parent)
+            // Note: True reordering across parents usually requires a two-step backend process 
+            // or a specific API. For now, we move it to the parent.
+            this.emit('noteMoved', { 
+                project: this.currentProject, 
+                noteId: this.draggedNoteId, 
+                newParentId: newParentId 
+            });
+            // ToDo: Implement moveWithIndex in backend for perfect cross-parent placement
+        }
     }
   }
 
   handleDragEnd(e) {
-    // Clear any pending dragOver timeout
-    if (this.dragOverTimeout) {
-      clearTimeout(this.dragOverTimeout);
-      this.dragOverTimeout = null;
-    }
-    
     this.draggedNoteId = null;
-    this.fileTree.querySelectorAll('.is-dragging').forEach(el => el.classList.remove('is-dragging'));
-    this.fileTree.querySelectorAll('.drop-target-child').forEach(el => el.classList.remove('drop-target-child'));
-    this.fileTree.querySelectorAll('.drop-target-before').forEach(el => el.classList.remove('drop-target-before'));
-    this.fileTree.querySelectorAll('.drop-target-after').forEach(el => el.classList.remove('drop-target-after'));
     this.removeDropPlaceholder();
-    this.lastDragOverTime = 0;
+    this.fileTree.querySelectorAll('.is-dragging').forEach(el => el.classList.remove('is-dragging'));
   }
 
   isDescendant(draggedId, targetId) {
@@ -817,7 +549,7 @@ export class ProjectView {
       return false;
   }
   
-  // --- Context Menu and In-Place Editing methods from here down ---
+  // --- Context Menu and In-Place Editing methods ---
   
   showContextMenu(x, y, noteId) {
     const items = [
@@ -880,7 +612,7 @@ export class ProjectView {
             parentLi.appendChild(parentUl);
             
             const toggleIcon = parentLi.querySelector('.toggle-icon');
-            if (toggleIcon) toggleIcon.textContent = '▼'; // It's now a parent
+            if (toggleIcon) toggleIcon.textContent = '▼'; 
             parentLi.classList.add('expanded');
         }
       }
@@ -918,7 +650,6 @@ export class ProjectView {
         const parentLi = parentUl.closest('li[data-note-id]');
         parentUl.remove();
         if (parentLi) {
-            // Revert parent state if it's no longer a parent
             parentLi.classList.remove('expanded');
             const toggleIcon = parentLi.querySelector('.toggle-icon');
             if (toggleIcon) toggleIcon.textContent = '';
