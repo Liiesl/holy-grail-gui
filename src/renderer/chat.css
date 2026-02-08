@@ -47,12 +47,14 @@
     border-bottom-right-radius: 2px;
 }
 
-.message.gemini p {
+/* Updated: Supports 'gemini' for backward compat, 'model' for new logic */
+.message.gemini p,
+.message.model p {
     background-color: var(--color-dark-surface);
     border-bottom-left-radius: 2px;
 }
 
-/* NEW: Styles for loading and error messages */
+/* Styles for loading and error messages */
 .message.loading p,
 .message.error p {
     border-bottom-left-radius: 2px;
@@ -110,5 +112,5 @@
 }
 
 #chat-send-btn:hover {
-    background-color: #0a84ffcc; /* Slightly transparent primary color */
+    background-color: #0a84ffcc; 
 }

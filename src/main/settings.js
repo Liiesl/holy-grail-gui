@@ -7,7 +7,7 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
 // Define the version of the settings structure your current code expects.
 // Increment this number whenever you make a breaking change to the settings/session format.
-const CURRENT_SETTINGS_VERSION = 'v0.1.28.1';
+const CURRENT_SETTINGS_VERSION = 'v0.1.29.0';
 
 /**
  * Reads the application settings from the user data directory.
@@ -17,7 +17,10 @@ async function readSettings() {
   const defaults = {
     settingsVersion: 'v0.0.0.0', // Assume old settings are version 0
     projects: [],
+    // AI Settings
+    aiProvider: 'gemini', // 'gemini' or 'mistral'
     geminiApiKey: '',
+    mistralApiKey: '', // New field
     session: null,
     autoCheckForUpdates: false,
     autoDownloadUpdates: false,

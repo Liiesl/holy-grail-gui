@@ -3,7 +3,8 @@ const { ipcMain, app } = require('electron'); // Added app
 const projectManager = require('./projectManager');
 const searchManager = require('./searchManager'); // Import the new search manager
 const { readSettings, saveSettings } = require('./settings'); // Import settings functions
-const { continueChat } = require('./gemini'); // Import Gemini function
+// CHANGE: Import the new AI Manager instead of gemini.js
+const aiManager = require('./aiManager'); 
 
 /**
  * Registers all IPC handlers for the application.
@@ -70,7 +71,7 @@ function registerIpcHandlers(sessionRef) {
     return projectManager.deleteProject(event, projectPath);
   });
 
-  // --- NEW: Settings Handlers ---
+  // --- Settings Handlers ---
   ipcMain.handle('get-settings', async () => {
     return readSettings();
   });
@@ -79,13 +80,12 @@ function registerIpcHandlers(sessionRef) {
     return saveSettings(settings);
   });
   
-  // --- UPGRADED: Gemini Chat Handler ---
-  // The logic is now centralized in gemini.js
+  // --- UPGRADED: Chat Handler ---
   ipcMain.handle('chat-with-gemini', async (event, messages) => {
     try {
       const settings = await readSettings();
-      // We pass 'event.sender' so gemini.js can send 'tool_start' updates to the UI
-      return await continueChat(messages, settings, event.sender);
+      // Use the generic manager
+      return await aiManager.continueChat(messages, settings, event.sender);
     } catch (error) {
       return { success: false, error: error.message };
     }

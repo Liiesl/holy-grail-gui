@@ -20,10 +20,9 @@ export class Settings {
     this.initElements();
     this.addEventListeners();
     this.loadAppVersion();
-    this.showTab('general'); // Show the first tab by default
+    this.showTab('general'); 
   }
 
-  // Simple event emitter
   on(event, callback) {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(callback);
@@ -46,21 +45,16 @@ export class Settings {
           <div class="settings-nav">
             <ul>
               <li data-tab="general" class="active">General</li>
+              <li data-tab="ai" class="active">AI & Chat</li>
               <li data-tab="appearance">Appearance</li>
               <li data-tab="projects">Projects</li>
               <li data-tab="about">About</li>
             </ul>
           </div>
           <div class="settings-content">
+            
             <div id="tab-general" class="tab-content">
               <h2>General Settings</h2>
-              
-              <div class="settings-form-group">
-                <label for="gemini-api-key">Gemini API Key</label>
-                <input type="password" id="gemini-api-key" placeholder="Enter your Gemini API Key">
-                <p>Your API key is stored locally and is only used to communicate with the Google Gemini API.</p>
-              </div>
-
               <div class="settings-form-group">
                 <label style="display: block; font-weight: normal; margin-bottom: 10px;">
                     <input type="checkbox" id="auto-check-updates" style="margin-right: 8px;">
@@ -71,13 +65,43 @@ export class Settings {
                     Automatically download updates when found
                 </label>
               </div>
-
-              <button class="settings-save-btn" id="save-settings-btn">Save Settings</button>
-              <span id="save-status" class="save-status"></span>
             </div>
+
+            <div id="tab-ai" class="tab-content hidden">
+              <h2>AI Configuration</h2>
+              
+              <div class="settings-form-group">
+                <label for="ai-provider">AI Provider</label>
+                <select id="ai-provider" style="width: 100%; max-width: 500px; padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
+                    <option value="gemini">Google Gemini</option>
+                    <option value="mistral">Mistral AI</option>
+                </select>
+              </div>
+
+              <div id="config-gemini" class="provider-config">
+                  <div class="settings-form-group">
+                    <label for="gemini-api-key">Gemini API Key</label>
+                    <input type="password" id="gemini-api-key" placeholder="Enter your Gemini API Key">
+                    <p>Get your key from Google AI Studio.</p>
+                  </div>
+              </div>
+
+              <div id="config-mistral" class="provider-config hidden">
+                  <div class="settings-form-group">
+                    <label for="mistral-api-key">Mistral API Key</label>
+                    <input type="password" id="mistral-api-key" placeholder="Enter your Mistral API Key">
+                    <p>Get your key from console.mistral.ai.</p>
+                  </div>
+              </div>
+
+              <div class="settings-form-group" style="margin-top: 30px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+                <p><strong>Note:</strong> API keys are stored locally on your device.</p>
+              </div>
+            </div>
+
             <div id="tab-appearance" class="tab-content hidden">
               <h2>Appearance</h2>
-              <p>Placeholder for theme settings (e.g., Light/Dark mode), font sizes, etc.</p>
+              <p>Placeholder for theme settings.</p>
             </div>
             <div id="tab-projects" class="tab-content hidden">
                 <h2>Project Management</h2>
@@ -101,6 +125,13 @@ export class Settings {
                     <button id="install-update-btn" class="settings-save-btn hidden">Restart & Install</button>
                 </div>
             </div>
+
+            <!-- Save button is global for the panel now -->
+            <div style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+                <button class="settings-save-btn" id="save-settings-btn">Save All Settings</button>
+                <span id="save-status" class="save-status"></span>
+            </div>
+
           </div>
         </div>
       </div>
@@ -108,13 +139,18 @@ export class Settings {
   }
 
   initElements() {
+    this.aiProviderSelect = this.container.querySelector('#ai-provider');
     this.geminiApiKeyInput = this.container.querySelector('#gemini-api-key');
+    this.mistralApiKeyInput = this.container.querySelector('#mistral-api-key');
+    
+    this.configGemini = this.container.querySelector('#config-gemini');
+    this.configMistral = this.container.querySelector('#config-mistral');
+
     this.autoCheckUpdatesCheckbox = this.container.querySelector('#auto-check-updates');
     this.autoDownloadUpdatesCheckbox = this.container.querySelector('#auto-download-updates');
     this.saveBtn = this.container.querySelector('#save-settings-btn');
     this.saveStatusEl = this.container.querySelector('#save-status');
 
-    // Update elements
     this.updateStatusText = this.container.querySelector('#update-status-text');
     this.updateProgressContainer = this.container.querySelector('#update-progress-container');
     this.updateProgressBar = this.container.querySelector('#update-progress-bar');
@@ -123,55 +159,72 @@ export class Settings {
     this.installUpdateBtn = this.container.querySelector('#install-update-btn');
   }
 
-
   addEventListeners() {
-    // Handle clicking the overlay to close
     this.container.addEventListener('click', (e) => {
-      // If the direct target of the click is the overlay itself, not the panel
       if (e.target === this.container) {
         this.emit('closeSettings');
       }
     });
 
-    // Handle closing the settings view with the button
     this.container.querySelector('#settings-close-btn').addEventListener('click', () => {
       this.emit('closeSettings');
     });
 
-    // Handle tab switching
     this.navItems = this.container.querySelectorAll('.settings-nav li');
     this.navItems.forEach(li => {
       li.addEventListener('click', () => this.showTab(li.dataset.tab));
     });
 
-    // Handle saving settings
     this.saveBtn.addEventListener('click', () => this.saveSettings());
     
-    // --- Update Listeners ---
-    this.checkForUpdatesBtn.addEventListener('click', () => {
-        window.api.checkForUpdates();
+    // Toggle Provider Views
+    this.aiProviderSelect.addEventListener('change', () => {
+        this.updateProviderVisibility();
     });
+
+    // Updates
+    this.checkForUpdatesBtn.addEventListener('click', () => window.api.checkForUpdates());
     this.downloadUpdateBtn.addEventListener('click', () => {
         window.api.downloadUpdate();
         this.downloadUpdateBtn.classList.add('hidden');
     });
-    this.installUpdateBtn.addEventListener('click', () => {
-        window.api.installUpdate();
-    });
+    this.installUpdateBtn.addEventListener('click', () => window.api.installUpdate());
     window.api.onUpdateStatus((status) => this.handleUpdateStatus(status));
   }
   
+  updateProviderVisibility() {
+      const provider = this.aiProviderSelect.value;
+      if (provider === 'gemini') {
+          this.configGemini.classList.remove('hidden');
+          this.configMistral.classList.add('hidden');
+      } else {
+          this.configGemini.classList.add('hidden');
+          this.configMistral.classList.remove('hidden');
+      }
+  }
+
   async loadCurrentSettings() {
     const settings = await window.api.getSettings();
+    
+    // AI Settings
+    this.aiProviderSelect.value = settings.aiProvider || 'gemini';
     this.geminiApiKeyInput.value = settings.geminiApiKey || '';
-    this.autoCheckUpdatesCheckbox.checked = settings.autoCheckForUpdates !== false; // Default to true
-    this.autoDownloadUpdatesCheckbox.checked = settings.autoDownloadUpdates === true; // Default to false
+    this.mistralApiKeyInput.value = settings.mistralApiKey || '';
+    this.updateProviderVisibility();
+
+    // General
+    this.autoCheckUpdatesCheckbox.checked = settings.autoCheckForUpdates !== false;
+    this.autoDownloadUpdatesCheckbox.checked = settings.autoDownloadUpdates === true;
   }
 
   async saveSettings() {
     this.saveBtn.disabled = true;
     const settingsToSave = {
+      // AI
+      aiProvider: this.aiProviderSelect.value,
       geminiApiKey: this.geminiApiKeyInput.value.trim(),
+      mistralApiKey: this.mistralApiKeyInput.value.trim(),
+      // General
       autoCheckForUpdates: this.autoCheckUpdatesCheckbox.checked,
       autoDownloadUpdates: this.autoDownloadUpdatesCheckbox.checked
     };
@@ -193,7 +246,6 @@ export class Settings {
   }
 
   handleUpdateStatus(status) {
-    // Hide all buttons and progress bar initially, then show what's needed.
     this.checkForUpdatesBtn.classList.remove('hidden');
     this.checkForUpdatesBtn.style.display = 'inline-block';
     this.downloadUpdateBtn.classList.add('hidden');
@@ -213,7 +265,7 @@ export class Settings {
             this.downloadUpdateBtn.classList.remove('hidden');
             this.checkForUpdatesBtn.style.display = 'none';
             break;
-        case 'available': // This now means "downloading has started"
+        case 'available': 
             this.updateStatusText.textContent = `A new version (${status.info.version}) is available. Downloading... ${formattedSize}`;
             this.checkForUpdatesBtn.disabled = true;
             this.checkForUpdatesBtn.style.display = 'none';
@@ -242,12 +294,9 @@ export class Settings {
   }
 
   showTab(tabId) {
-    // Update active state on nav items
     this.navItems.forEach(li => {
       li.classList.toggle('active', li.dataset.tab === tabId);
     });
-
-    // Show/hide content panels
     this.container.querySelectorAll('.tab-content').forEach(tab => {
       tab.classList.toggle('hidden', tab.id !== `tab-${tabId}`);
     });

@@ -2,8 +2,8 @@
 export class Chat {
     constructor(container) {
         this.container = container;
-        this.history = []; // To store conversation history for the model
-        this.systemMessage = null; // To hold the element for status updates
+        this.history = []; 
+        this.systemMessage = null; 
         this.render();
         this.initElements();
         this.addEventListeners();
@@ -12,11 +12,11 @@ export class Chat {
     render() {
         this.container.innerHTML = `
             <div class="chat-header">
-                <h3>Gemini Chat</h3>
+                <h3>AI Assistant</h3>
             </div>
             <div class="chat-messages" id="chat-messages">
-                <div class="message gemini">
-                    <p>Hello! How can I help you today? I can also search your notes to answer questions. Please set your Gemini API key in Settings to begin.</p>
+                <div class="message model">
+                    <p>Hello! I can search your notes, read content, and help you write. Please ensure your AI Provider is configured in Settings.</p>
                 </div>
             </div>
             <div class="chat-input-area">
@@ -52,10 +52,10 @@ export class Chat {
 
         const p = this.systemMessage.querySelector('p');
         if (update.type === 'tool_start') {
-            const query = update.tool.args.query;
-            p.textContent = `Searching notes for: "${query}"`;
+            const query = update.tool.args.query || update.tool.name;
+            p.textContent = `Using tool: ${update.tool.name}...`;
         } else if (update.type === 'tool_end') {
-            p.textContent = 'Analyzing search results...';
+            p.textContent = 'Processing results...';
         }
     }
 
@@ -73,6 +73,8 @@ export class Chat {
         this.systemMessage = this.addMessage('Thinking...', 'loading');
 
         try {
+            // Note: We still call 'chatWithGemini' because the preload/IPC bridge matches the main process.
+            // The Main process 'aiManager' handles switching providers.
             const result = await window.api.chatWithGemini(this.history);
 
             // Remove the status message
@@ -80,25 +82,19 @@ export class Chat {
             this.systemMessage = null;
 
             if (result.success) {
-                // === FIX STARTS HERE ===
                 // Only add to history if the response actually has text
                 if (result.response && result.response.trim().length > 0) {
-                    this.addMessage(result.response, 'gemini');
+                    this.addMessage(result.response, 'model'); // 'model' class replaces 'gemini'
                     this.history.push({ role: 'model', parts: [{ text: result.response }] });
                 } else {
-                    // Handle empty response gracefully (e.g., model got confused)
-                    // Do NOT push to history
-                    this.addMessage("(No text response received from Gemini)", 'error');
+                    this.addMessage("(No text response received)", 'error');
                 }
-                // === FIX ENDS HERE ===
             } else {
-                // Display user-friendly error from main process
                 this.addMessage(result.error, 'error');
             }
         } catch (e) {
-            // Handle unexpected errors during IPC call itself
             if (this.systemMessage) this.systemMessage.remove();
-            this.addMessage('An unexpected error occurred. Please check the developer console.', 'error');
+            this.addMessage('An unexpected error occurred.', 'error');
             console.error('Chat IPC error:', e);
         } finally {
             this.sendBtn.disabled = false;
@@ -116,6 +112,6 @@ export class Chat {
         this.messagesContainer.appendChild(messageEl);
         // Scroll to bottom
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        return messageEl; // Return element to allow for its manipulation
+        return messageEl;
     }
 }

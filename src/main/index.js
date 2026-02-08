@@ -173,13 +173,20 @@ async function createWindow() {
   });
 
   // Save session on close
+  // Variable to track if we have finished saving
+  let isSessionSaved = false;
+
   mainWindow.on('close', async (event) => {
-    // Prevent the window from closing immediately.
-    // This allows our async save operation to complete.
-    event.preventDefault(); 
-    
+    // 1. If we have already saved, allow the close to happen naturally
+    if (isSessionSaved) {
+        return; 
+    }
+
+    // 2. Prevent the immediate close
+    event.preventDefault();
+
     try {
-        if (mainWindow) { // Ensure window object exists
+        if (mainWindow) {
             const currentSettings = await readSettings();
             const sessionToSave = {
                 ...sessionRef.current,
@@ -191,12 +198,14 @@ async function createWindow() {
     } catch (error) {
         console.error('Failed to save session on close:', error);
     } finally {
-        // After saving, we must manually close the window.
-        // Using destroy() bypasses this 'close' event handler, preventing a loop.
+        // 3. Mark as saved
+        isSessionSaved = true;
+        
+        // 4. Trigger the close again. 
+        // Since isSessionSaved is now true, it will skip step 2
+        // and trigger the proper 'closed' and 'window-all-closed' events.
         if (mainWindow) {
-            const win = mainWindow; // Capture reference before nulling
-            mainWindow = null; // Help with GC and prevent race conditions on fast re-open
-            win.destroy();
+            mainWindow.close();
         }
     }
   });
