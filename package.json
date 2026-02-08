@@ -20,9 +20,9 @@
     "url": "https://github.com/Liiesl/holy-grail-gui.git"
   },
   "devDependencies": {
-    "electron": "^37.3.1",
-    "electron-builder": "^26.0.12",
-    "jest": "^30.1.3"
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "jest": "^30.2.0"
   },
   "build": {
     "appId": "com.github.liiesl.hggui",
@@ -50,8 +50,9 @@
     }
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^1.38.0",
+    "@mistralai/mistralai": "^1.13.0",
     "electron-log": "^5.4.3",
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.7.3"
   }
 }
