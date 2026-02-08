@@ -78,7 +78,7 @@ const widgetRules = [
       return { htmlParts, linesConsumed };
       // --- END: NEW PARSING LOGIC ---
     },
-    htmlRegex: /<div class="kanban-board"[^>]*>(.*?)<\/div>\s*<!--KANBAN_END_MARKER-->/gis,
+    htmlRegex: /<div class="kanban-board"[^>]*>([\s\S]*?)<!--KANBAN_END_MARKER-->/gis,
     htmlToMd: (match, boardContent) => {
       // --- START: NEW SERIALIZATION LOGIC ---
       const parser = new DOMParser();

@@ -200,8 +200,17 @@ export class HGMDEngine {
 
     console.log("Markdown after applying rules:", markdown);
 
+    // HOTFIX: Protect kanban board end marker from HTML tag stripping
+    // The pattern - [<] looks like an HTML tag to the regex, so we temporarily escape it
+    const KANBAN_END_PLACEHOLDER = '\uE002'; // Private Use Area character
+    markdown = markdown.replace(/-\s*\[<\]\s*Kanban Board/g, `- [${KANBAN_END_PLACEHOLDER}] Kanban Board`);
+
     // Post-processing: Clean up any remaining artifacts.
     markdown = markdown.replace(/<[^>]*>/g, ''); // Strip lingering HTML tags
+
+    // Restore the kanban end marker
+    markdown = markdown.replace(new RegExp(`- \\[${KANBAN_END_PLACEHOLDER}\\] Kanban Board`, 'g'), '- [<] Kanban Board');
+
     console.log("Markdown after stripping HTML tags:", markdown);
     return markdown.trim();
   }
