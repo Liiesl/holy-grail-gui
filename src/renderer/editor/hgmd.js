@@ -1,8 +1,8 @@
 // src/renderer/hgmd.js
-import { HGMDEngine } from './HGMDEngine.js';
+import { HGMDEngineV2 } from './HGMDEngineV2.js';
 
 // Instantiate the engine once to be used as a singleton service.
-const engine = new HGMDEngine();
+const engine = new HGMDEngineV2();
 
 /**
  * Handles Markdown-to-HTML and HTML-to-Markdown conversions
