@@ -16,14 +16,30 @@ import {
  */
 export class HTMLParser {
   constructor() {
-    // Check if DOMParser is available (browser environment)
+    // Check if DOMParser is available (browser or jsdom environment)
     if (typeof DOMParser !== 'undefined') {
       this.parser = new DOMParser();
+      this.Node = Node;
+      this.hasDOMParser = true;
+    } else if (typeof window !== 'undefined' && window.DOMParser) {
+      this.parser = new window.DOMParser();
+      this.Node = window.Node;
       this.hasDOMParser = true;
     } else {
       console.warn('DOMParser not available - HTML parsing will not work in this environment');
       this.hasDOMParser = false;
     }
+  }
+
+  /**
+   * Initialize with a custom DOMParser (useful for testing with JSDOM)
+   */
+  static withJSDOM(jsdomWindow) {
+    const parser = new HTMLParser();
+    parser.parser = new jsdomWindow.DOMParser();
+    parser.Node = jsdomWindow.Node;
+    parser.hasDOMParser = true;
+    return parser;
   }
   
   /**
@@ -72,9 +88,9 @@ export class HTMLParser {
    * Parse a single DOM node to AST
    */
   parseNode(node) {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === this.Node.TEXT_NODE) {
       return this.parseTextNode(node);
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
+    } else if (node.nodeType === this.Node.ELEMENT_NODE) {
       return this.parseElement(node);
     }
     return null;
@@ -85,7 +101,8 @@ export class HTMLParser {
    */
   parseTextNode(node) {
     const text = node.textContent;
-    if (!text || text === '\n') return null;
+    // Skip empty text or just whitespace/newlines (inter-element whitespace)
+    if (!text || text.trim() === '') return null;
     return new TextNode(text);
   }
   
@@ -168,8 +185,16 @@ export class HTMLParser {
    */
   parseParagraph(element) {
     // Check for empty paragraph (editor artifact)
-    if (element.innerHTML === '<br>' || element.innerHTML === '') {
+    // Handle <br>, <br/>, <br />, and empty string
+    const innerHTML = element.innerHTML.trim();
+    if (innerHTML === '' || innerHTML === '<br>' || innerHTML === '<br/>' || innerHTML === '<br />') {
       return new EmptyParagraphNode(); // Represents intentional blank line
+    }
+    
+    // Check for whitespace-only content (treat as empty paragraph)
+    const textContent = element.textContent || '';
+    if (textContent.trim() === '') {
+      return new EmptyParagraphNode();
     }
     
     const children = this.parseChildren(element);

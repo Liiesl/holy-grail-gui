@@ -80,6 +80,13 @@ export class HTMLVisitor {
     const content = this.visitChildren(node);
     return `<p>${content}</p>`;
   }
+
+  /**
+   * Empty paragraph node (intentional blank line)
+   */
+  visitEmptyParagraph(node) {
+    return '<p><br></p>';
+  }
   
   /**
    * Heading node

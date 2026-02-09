@@ -65,7 +65,7 @@ export class HGMDEngineV2 {
       // Generate Markdown from AST
       const markdown = this.markdownVisitor.visit(ast);
       
-      return markdown.trim();
+      return markdown;
     } catch (error) {
       console.warn('HGMDEngineV2.htmlToMarkdown error:', error);
       // Return safe fallback

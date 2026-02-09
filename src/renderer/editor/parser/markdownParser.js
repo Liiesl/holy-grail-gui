@@ -2,7 +2,7 @@
 
 import {
   DocumentNode, TextNode, LineBreakNode,
-  ParagraphNode, HeadingNode, BlockquoteNode, CodeBlockNode, HorizontalRuleNode,
+  ParagraphNode, EmptyParagraphNode, HeadingNode, BlockquoteNode, CodeBlockNode, HorizontalRuleNode,
   UnorderedListNode, OrderedListNode, ListItemNode,
   BoldNode, ItalicNode, StrikethroughNode, UnderlineNode, HighlightNode, InlineCodeNode, LinkNode,
   TableNode, TableRowNode, TableCellNode,
@@ -32,7 +32,8 @@ export class MarkdownParser {
     this.pos = 0;
     
     const children = [];
-    let lastWasBlock = false;
+    let consecutiveEmptyLines = 0;
+    let hasPreviousBlock = false;
     
     while (this.pos < this.lines.length) {
       const line = this.lines[this.pos];
@@ -40,22 +41,42 @@ export class MarkdownParser {
       
       // Handle empty lines at block level
       if (trimmed === '') {
-        // If we just parsed a block and there's a blank line, insert empty paragraph
-        if (lastWasBlock) {
-          children.push(new ParagraphNode([new LineBreakNode()]));
-          lastWasBlock = false;
-        }
+        consecutiveEmptyLines++;
         this.pos++;
         continue;
+      }
+      
+      // If we have accumulated empty lines, add EmptyParagraphNode for blank lines
+      // Each blank line is represented by 2 newlines, but the math works as:
+      // consecutiveEmptyLines -> blankLineCount:
+      //   1 -> 1, 2 -> 1, 3 -> 2, 4 -> 2, 5 -> 3, etc.
+      // This is floor((consecutiveEmptyLines + 1) / 2)
+      if (consecutiveEmptyLines > 0) {
+        const blankLineCount = Math.floor((consecutiveEmptyLines + 1) / 2);
+        
+        for (let i = 0; i < blankLineCount; i++) {
+          children.push(new EmptyParagraphNode());
+        }
+        consecutiveEmptyLines = 0;
+        hasPreviousBlock = true;
       }
       
       // Try to parse as a block element
       const node = this.parseBlock();
       if (node) {
         children.push(node);
-        lastWasBlock = true;
+        hasPreviousBlock = true;
       } else {
         this.pos++;
+      }
+    }
+    
+    // Handle any trailing empty lines
+    if (consecutiveEmptyLines > 0) {
+      const blankLineCount = Math.floor((consecutiveEmptyLines + 1) / 2);
+      
+      for (let i = 0; i < blankLineCount; i++) {
+        children.push(new EmptyParagraphNode());
       }
     }
     

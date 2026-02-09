@@ -47,15 +47,50 @@ export class MarkdownVisitor {
     
     const parts = [];
     
-    for (const child of node.children) {
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
       const content = this.visit(child);
       
-      if (!content) continue;
+      // Only skip null/undefined, allow empty strings and whitespace
+      if (content === null || content === undefined) continue;
       
-      parts.push(content);
+      // Check if this node is a block
+      const isCurrentBlock = this.isBlockNode(child);
+      const prevChild = i > 0 ? node.children[i - 1] : null;
+      const isPrevBlock = prevChild && this.isBlockNode(prevChild);
+      const isPrevEmpty = prevChild && prevChild.type === 'EmptyParagraph';
+      const isCurrentEmpty = child.type === 'EmptyParagraph';
+      
+      // Add separator between consecutive non-empty blocks
+      // Don't add separator if previous was EmptyParagraph (it contributes its own \n\n)
+      // Don't add separator if current is EmptyParagraph (it contributes its own \n\n)
+      if (isCurrentBlock && isPrevBlock && !isPrevEmpty && !isCurrentEmpty) {
+        parts.push('\n\n');
+      }
+      
+      if (isCurrentEmpty) {
+        // EmptyParagraph represents a blank line, which is \n\n in markdown
+        parts.push('\n\n');
+      } else {
+        parts.push(content);
+      }
     }
     
-    return parts.join('').trim();
+    const result = parts.join('');
+    
+    // Trim leading/trailing whitespace, but preserve content if it's only whitespace
+    // (to allow standalone empty paragraphs to survive)
+    const trimmed = result.replace(/^\s+|\s+$/g, '');
+    return trimmed === '' && result.length > 0 ? result : trimmed;
+  }
+  
+  /**
+   * Check if a node is a block-level node that provides spacing
+   */
+  isBlockNode(node) {
+    if (!node) return false;
+    const blockTypes = ['Paragraph', 'EmptyParagraph', 'Heading', 'Blockquote', 'CodeBlock', 'UnorderedList', 'OrderedList', 'Table', 'Alert', 'Kanban'];
+    return blockTypes.includes(node.type);
   }
   
   /**
@@ -77,15 +112,15 @@ export class MarkdownVisitor {
    */
   visitParagraph(node) {
     const content = this.visitChildren(node);
-    return content + '\n';
+    return content;
   }
   
   /**
    * Empty paragraph node (intentional blank line)
-   * Returns '\n\n' to create the blank line in HGMD format
+   * The spacing is handled in visitDocument based on context
    */
   visitEmptyParagraph(node) {
-    return '\n\n';
+    return ''; // Handled in visitDocument
   }
   
   /**
@@ -94,7 +129,7 @@ export class MarkdownVisitor {
   visitHeading(node) {
     const content = this.visitChildren(node);
     const hashes = '#'.repeat(node.level);
-    return `${hashes} ${content}\n`;
+    return `${hashes} ${content}`;
   }
   
   /**
@@ -107,7 +142,7 @@ export class MarkdownVisitor {
       if (line.trim() === '') return '';
       return `> ${line}`;
     });
-    return quotedLines.join('\n') + '\n';
+    return quotedLines.join('\n');
   }
   
   /**
@@ -115,14 +150,14 @@ export class MarkdownVisitor {
    */
   visitCodeBlock(node) {
     const lang = node.language || '';
-    return `\`\`\`${lang}\n${node.value}\n\`\`\`\n`;
+    return `\`\`\`${lang}\n${node.value}\n\`\`\``;
   }
   
   /**
    * Horizontal rule node
    */
   visitHorizontalRule(node) {
-    return '---\n';
+    return '---';
   }
   
   /**
@@ -130,9 +165,7 @@ export class MarkdownVisitor {
    */
   visitUnorderedList(node) {
     const items = node.children.map(item => {
-      const content = this.visit(item);
-      // Ensure each item ends with exactly one newline, no more
-      return content.replace(/\n+$/, '\n');
+      return this.visit(item);
     }).join('');
     return items;
   }
@@ -142,9 +175,7 @@ export class MarkdownVisitor {
    */
   visitOrderedList(node) {
     const items = node.children.map((item, index) => {
-      const content = this.visitListItem(item, index + 1);
-      // Ensure each item ends with exactly one newline, no more
-      return content.replace(/\n+$/, '\n');
+      return this.visitListItem(item, index + 1);
     }).join('');
     return items;
   }
@@ -208,7 +239,7 @@ export class MarkdownVisitor {
       }
     }
 
-    // Ensure single newline at end
+    // Return with single newline - list items need to be on separate lines
     return `${indent}${prefix}${content}\n`;
   }
   
@@ -349,7 +380,7 @@ export class MarkdownVisitor {
    * Alert node
    */
   visitAlert(node) {
-    return `::${node.alertType}[${node.value}]\n`;
+    return `::${node.alertType}[${node.value}]`;
   }
   
   /**
