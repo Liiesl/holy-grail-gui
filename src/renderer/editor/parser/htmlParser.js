@@ -204,16 +204,32 @@ export class HTMLParser {
    */
   parsePreformatted(element) {
     const codeElement = element.querySelector('code');
-    
+
     if (codeElement) {
       const language = this.extractLanguage(codeElement);
-      const content = this.getTextContent(codeElement);
+      // Get text content and strip HTML-like tags (e.g., <const> -> const)
+      let content = this.getTextContent(codeElement);
+      content = content.replace(/<([^>]+)>/g, '$1');
       return new CodeBlockNode(language, content);
     }
-    
+
     // Plain preformatted text
-    const content = this.getTextContent(element);
+    let content = this.getTextContent(element);
+    content = content.replace(/<([^>]+)>/g, '$1');
     return new CodeBlockNode('', content);
+  }
+
+  /**
+   * Decode HTML entities to their character equivalents
+   */
+  decodeHtmlEntities(text) {
+    if (!text) return '';
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
   }
   
   /**
@@ -334,15 +350,17 @@ export class HTMLParser {
       const headerRow = thead.querySelector('tr');
       if (headerRow) {
         const cells = [];
+        let cellIndex = 0;
         for (const th of headerRow.querySelectorAll('th')) {
           const cellStyle = th.getAttribute('style') || '';
           const align = this.extractAlign(cellStyle);
           const width = this.extractWidth(cellStyle);
-          
-          if (align) alignments.push(align);
-          if (width) widths.push(width);
-          
+
+          alignments[cellIndex] = align;
+          widths[cellIndex] = width;
+
           cells.push(new TableCellNode(this.parseChildren(th), { align, width }));
+          cellIndex++;
         }
         headerRows.push(new TableRowNode(cells, true));
       }

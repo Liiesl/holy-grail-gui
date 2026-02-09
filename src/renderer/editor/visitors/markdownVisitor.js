@@ -41,7 +41,7 @@ export class MarkdownVisitor {
    * Document node
    */
   visitDocument(node) {
-    const content = this.visitChildren(node, '\n');
+    const content = this.visitChildren(node, '');
     return content.trim();
   }
   
@@ -128,7 +128,7 @@ export class MarkdownVisitor {
    */
   visitListItem(node, index = null) {
     let content = this.visitChildren(node);
-    
+
     // Handle task item
     let prefix = '- ';
     if (node.checked !== null) {
@@ -137,7 +137,15 @@ export class MarkdownVisitor {
     } else if (index !== null) {
       prefix = `${index}. `;
     }
-    
+
+    // Trim leading space from content to avoid double spacing after checkbox
+    content = content.replace(/^\s+/, '');
+
+    // Preserve at least one space for empty list items
+    if (content === '' && node.checked === null) {
+      content = ' ';
+    }
+
     return `${prefix}${content}\n`;
   }
   

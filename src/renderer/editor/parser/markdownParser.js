@@ -83,6 +83,9 @@ export class MarkdownParser {
     if (this.isTableStart(trimmed)) {
       const table = this.parseTable();
       if (table) return table;
+      // If parseTable returns null, this line looks like a table but isn't
+      // Treat it as a paragraph instead
+      return this.parseParagraph();
     }
     
     // Blockquote (multi-line)
@@ -259,16 +262,16 @@ export class MarkdownParser {
    */
   parseTable() {
     const headerLine = this.lines[this.pos].trim();
-    
+
     // Need at least 2 lines for a table
     if (this.pos + 1 >= this.lines.length) {
       return null;
     }
-    
+
     const separatorLine = this.lines[this.pos + 1].trim();
-    
-    // Check if separator line is valid
-    if (!/^\|(?:\s*:?-[^|]*:?\s*\|)+/.test(separatorLine)) {
+
+    // Check if separator line is valid (must start with | and contain dashes)
+    if (!/^\|/.test(separatorLine) || !/:?-+/.test(separatorLine)) {
       return null;
     }
     
@@ -302,8 +305,11 @@ export class MarkdownParser {
       }
       
       // Extract width from patterns like -100px- or -20%-
-      const widthMatch = trimmed.match(/^:?-([^-:]+)-:?$/);
-      const width = widthMatch ? widthMatch[1] : null;
+      // Pattern: optional colon at start, dash, width (non-greedy), dash, optional colon at end
+      // The width should not include trailing colons used for alignment
+      const widthPattern = trimmed.replace(/^:?-|-:?$/g, '');
+      // Check if what's left is a width (contains non-dash characters and isn't just colons)
+      const width = (widthPattern && widthPattern.length > 0 && /[^-:]/.test(widthPattern)) ? widthPattern.replace(/:+$/, '') : null;
       
       alignments.push(align);
       widths.push(width);
@@ -530,23 +536,24 @@ export class MarkdownParser {
    */
   parseParagraph() {
     const lines = [];
-    
+
     while (this.pos < this.lines.length) {
       const line = this.lines[this.pos];
-      
+
       if (line.trim() === '') break;
-      if (this.isBlockStart(line)) break;
-      
+      // Check for block starts, but allow lines starting with | (failed table parses)
+      if (this.isBlockStart(line) && !line.trim().startsWith('|')) break;
+
       lines.push(line);
       this.pos++;
     }
-    
+
     if (lines.length === 0) return null;
-    
+
     // Join lines with space for inline parsing
     const content = lines.join(' ');
     const children = this.parseInline(content);
-    
+
     return new ParagraphNode(children);
   }
   
@@ -595,7 +602,12 @@ export class MarkdownParser {
       
       // Bold: **text** - check for ** first
       if (remaining.startsWith('**')) {
-        const endPos = remaining.indexOf('**', 2);
+        let endPos = remaining.indexOf('**', 2);
+        // If we found ** and it's followed by more asterisks, skip to the last pair
+        // This handles cases like *** where we want to match the last ** (for nested italic)
+        while (endPos > 2 && remaining[endPos + 2] === '*') {
+          endPos++;
+        }
         if (endPos > 2) {
           const content = remaining.substring(2, endPos);
           const boldChildren = this.parseInline(content);
