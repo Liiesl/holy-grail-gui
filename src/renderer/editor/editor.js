@@ -300,8 +300,11 @@ export class Editor {
     this.renderHtml(markdown);
     
     // Focus the editor and set cursor to the beginning after loading
+    // Use a small delay to ensure DOM is fully settled
     this.editorEl.focus();
-    this.setCursorAtStart();
+    setTimeout(() => {
+      this.setCursorAtStart();
+    }, 0);
     
     this.isDirty = false;
     this.emit('dirtyStateChanged', { isDirty: false });
@@ -329,25 +332,44 @@ export class Editor {
   }
 
   setCursorAtStart() {
-    const selection = window.getSelection();
-    const range = document.createRange();
-    
-    // Find the first text node or create one if needed
-    let firstNode = this.editorEl;
-    while (firstNode.firstChild && firstNode.firstChild.nodeType === Node.ELEMENT_NODE) {
+    // Defer execution to ensure DOM has settled
+    requestAnimationFrame(() => {
+      // Check if editor element is still in the document
+      if (!document.contains(this.editorEl)) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      
+      // Find the first text node or create one if needed
+      let firstNode = this.editorEl;
+      while (firstNode.firstChild && firstNode.firstChild.nodeType === Node.ELEMENT_NODE) {
         firstNode = firstNode.firstChild;
-    }
-    
-    if (firstNode.firstChild && firstNode.firstChild.nodeType === Node.TEXT_NODE) {
+      }
+      
+      // Ensure the node is actually attached to the DOM
+      if (!document.contains(firstNode)) {
+        return;
+      }
+
+      const range = document.createRange();
+      
+      if (firstNode.firstChild && firstNode.firstChild.nodeType === Node.TEXT_NODE) {
         firstNode = firstNode.firstChild;
         range.setStart(firstNode, 0);
-    } else {
+      } else {
         range.setStart(firstNode, 0);
-    }
-    range.collapse(true);
-    
-    selection.removeAllRanges();
-    selection.addRange(range);
+      }
+      range.collapse(true);
+      
+      try {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } catch (e) {
+        // Silently ignore if range can't be added
+        console.warn('Could not set cursor:', e.message);
+      }
+    });
   }
 
   handleInput() {
