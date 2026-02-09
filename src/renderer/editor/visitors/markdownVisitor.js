@@ -61,15 +61,16 @@ export class MarkdownVisitor {
       const isPrevEmpty = prevChild && prevChild.type === 'EmptyParagraph';
       const isCurrentEmpty = child.type === 'EmptyParagraph';
       
-      // Add separator between consecutive non-empty blocks
-      // Don't add separator if previous was EmptyParagraph (it contributes its own \n\n)
-      // Don't add separator if current is EmptyParagraph (it contributes its own \n\n)
-      if (isCurrentBlock && isPrevBlock && !isPrevEmpty && !isCurrentEmpty) {
-        parts.push('\n\n');
+      // Add separator between consecutive non-empty blocks (single newline)
+      // EmptyParagraph provides its own spacing, so no separator around it
+      const adjacentToEmpty = isPrevEmpty || isCurrentEmpty;
+      if (isCurrentBlock && isPrevBlock && !adjacentToEmpty) {
+        parts.push('\n');
       }
       
       if (isCurrentEmpty) {
-        // EmptyParagraph represents a blank line, which is \n\n in markdown
+        // EmptyParagraph represents a blank line (\n\n in markdown)
+        // It replaces the normal block separator
         parts.push('\n\n');
       } else {
         parts.push(content);
