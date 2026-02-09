@@ -2,15 +2,15 @@
 
 export function getCoreCommands() {
   return [
-    { name: 'Heading 1', command: 'h1', description: 'Large heading', action: (editor) => editor.applyFormat('h1') },
-    { name: 'Heading 2', command: 'h2', description: 'Medium heading', action: (editor) => editor.applyFormat('h2') },
-    { name: 'Heading 3', command: 'h3', description: 'Small heading', action: (editor) => editor.applyFormat('h3') },
-    { name: 'Paragraph', command: 'p', description: 'Reset current line to paragraph', action: (editor) => editor.applyFormat('p') },
-    { name: 'Bulleted List', command: 'ul', description: 'Create a simple bulleted list', action: (editor) => editor.applyFormat('ul') },
-    { name: 'Numbered List', command: 'ol', description: 'Create an ordered list', action: (editor) => editor.applyFormat('ol') },
-    { name: 'Quote', command: 'blockquote', description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
-    { name: 'Code Block', command: 'pre', description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
-    { name: 'Divider', command: 'hr', description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },
+    { name: 'Heading 1', command: 'h1', aliases: ['h1', 'heading1', 'h1'], description: 'Large heading', action: (editor) => editor.applyFormat('h1') },
+    { name: 'Heading 2', command: 'h2', aliases: ['h2', 'heading2'], description: 'Medium heading', action: (editor) => editor.applyFormat('h2') },
+    { name: 'Heading 3', command: 'h3', aliases: ['h3', 'heading3'], description: 'Small heading', action: (editor) => editor.applyFormat('h3') },
+    { name: 'Paragraph', command: 'p', aliases: ['p', 'para'], description: 'Reset current line to paragraph', action: (editor) => editor.applyFormat('p') },
+    { name: 'Bulleted List', command: 'ul', aliases: ['ul', 'li', 'bullet', 'list'], description: 'Create a simple bulleted list', action: (editor) => editor.applyFormat('ul') },
+    { name: 'Numbered List', command: 'ol', aliases: ['ol', 'num', 'number', 'numbered'], description: 'Create an ordered list', action: (editor) => editor.applyFormat('ol') },
+    { name: 'Quote', command: 'blockquote', aliases: ['quote', 'blockquote', 'bq'], description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
+    { name: 'Code Block', command: 'pre', aliases: ['code', 'pre', 'codeblock'], description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
+    { name: 'Divider', command: 'hr', aliases: ['hr', 'divider', 'line', 'horizontal'], description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },
     { 
       name: 'Emoji', 
       command: 'emoji', 

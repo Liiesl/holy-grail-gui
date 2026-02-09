@@ -85,10 +85,42 @@ export class SlashCommand {
   }
 
   update(filterText) {
-    this.filteredCommands = this.commands.filter(cmd =>
-      cmd.name.toLowerCase().includes(filterText.toLowerCase()) ||
-      cmd.description.toLowerCase().includes(filterText.toLowerCase())
-    );
+    const lowerFilter = filterText.toLowerCase();
+    
+    // Score and rank commands based on match quality
+    const scoredCommands = this.commands.map(cmd => {
+      let score = 0;
+      
+      // Check aliases for exact or prefix matches (highest priority)
+      if (cmd.aliases && cmd.aliases.length > 0) {
+        const lowerAliases = cmd.aliases.map(a => a.toLowerCase());
+        
+        // Exact alias match gets highest score
+        if (lowerAliases.includes(lowerFilter)) {
+          score = 3;
+        } else if (lowerAliases.some(alias => alias.startsWith(lowerFilter))) {
+          // Alias starts with filter
+          score = 2;
+        }
+      }
+      
+      // If no alias match, check name and description
+      if (score === 0) {
+        const lowerName = cmd.name.toLowerCase();
+        const lowerDesc = cmd.description.toLowerCase();
+        
+        if (lowerName.includes(lowerFilter) || lowerDesc.includes(lowerFilter)) {
+          score = 1;
+        }
+      }
+      
+      return { cmd, score };
+    }).filter(item => item.score > 0);
+    
+    // Sort by score (descending) so higher scores appear first
+    scoredCommands.sort((a, b) => b.score - a.score);
+    
+    this.filteredCommands = scoredCommands.map(item => item.cmd);
 
     if (this.filteredCommands.length === 0) {
       this.hide();
