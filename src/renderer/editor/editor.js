@@ -299,6 +299,10 @@ export class Editor {
     const markdown = await this.projectManager.getNoteContent(projectPath, filename);
     this.renderHtml(markdown);
     
+    // Focus the editor and set cursor to the beginning after loading
+    this.editorEl.focus();
+    this.setCursorAtStart();
+    
     this.isDirty = false;
     this.emit('dirtyStateChanged', { isDirty: false });
     this.setReadOnly(false);
@@ -322,6 +326,28 @@ export class Editor {
     if (isReadOnly) {
         this.floatingToolbar.classList.add('hidden');
     }
+  }
+
+  setCursorAtStart() {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    
+    // Find the first text node or create one if needed
+    let firstNode = this.editorEl;
+    while (firstNode.firstChild && firstNode.firstChild.nodeType === Node.ELEMENT_NODE) {
+        firstNode = firstNode.firstChild;
+    }
+    
+    if (firstNode.firstChild && firstNode.firstChild.nodeType === Node.TEXT_NODE) {
+        firstNode = firstNode.firstChild;
+        range.setStart(firstNode, 0);
+    } else {
+        range.setStart(firstNode, 0);
+    }
+    range.collapse(true);
+    
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 
   handleInput() {

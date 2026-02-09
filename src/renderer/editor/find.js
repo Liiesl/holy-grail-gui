@@ -69,6 +69,13 @@ export class FindManager {
   }
 
   clearFindHighlights() {
+    // Save current selection before clearing highlights
+    const selection = window.getSelection();
+    let savedRange = null;
+    if (selection.rangeCount > 0 && this.editorEl.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+        savedRange = selection.getRangeAt(0).cloneRange();
+    }
+
     const marks = Array.from(this.editorEl.querySelectorAll('mark.find-match'));
     marks.forEach(mark => {
         const parent = mark.parentNode;
@@ -80,6 +87,18 @@ export class FindManager {
             parent.normalize(); // Merges adjacent text nodes
         }
     });
+
+    // Restore selection after DOM manipulation
+    if (savedRange && this.editorEl.contains(savedRange.commonAncestorContainer)) {
+        try {
+            selection.removeAllRanges();
+            selection.addRange(savedRange);
+        } catch (e) {
+            // Selection restoration failed, focus at end
+            this.editorEl.focus();
+        }
+    }
+
     this.findMatches = [];
     this.currentFindIndex = -1;
     this.findCounter.textContent = '';

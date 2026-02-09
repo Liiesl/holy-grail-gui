@@ -311,6 +311,22 @@ export class Main {
   
   renderPanes({ openTabs } = { openTabs: [] }) {
     const activeContent = document.activeElement;
+    const activeEditor = this.getActiveEditor();
+    
+    // Save selection from the active editor before re-rendering
+    let savedSelection = null;
+    if (activeEditor && activeEditor.editorEl && document.activeElement === activeEditor.editorEl) {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            savedSelection = {
+                startContainer: range.startContainer,
+                startOffset: range.startOffset,
+                endContainer: range.endContainer,
+                endOffset: range.endOffset
+            };
+        }
+    }
 
     this.editorsWrapper.innerHTML = '';
     this.editorsWrapper.appendChild(this.welcomeMessageEl);
@@ -366,7 +382,27 @@ export class Main {
     const hasOpenFile = this.getAllFileIdsInLayout().length > 0;
     this.welcomeMessageEl.style.display = hasOpenFile ? 'none' : 'flex';
 
-    if (document.body.contains(activeContent)) activeContent.focus();
+    // Restore focus to the active editor and attempt to restore selection
+    const newActiveEditor = this.getActiveEditor();
+    if (newActiveEditor && newActiveEditor.editorEl) {
+        newActiveEditor.editorEl.focus();
+        
+        // Try to restore the saved selection
+        if (savedSelection && document.body.contains(savedSelection.startContainer)) {
+            try {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.setStart(savedSelection.startContainer, savedSelection.startOffset);
+                range.setEnd(savedSelection.endContainer, savedSelection.endOffset);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } catch (e) {
+                // Selection restoration failed, just maintain focus
+            }
+        }
+    } else if (document.body.contains(activeContent)) {
+        activeContent.focus();
+    }
   }
 
   findNode(predicate, node = this.paneLayout) {
