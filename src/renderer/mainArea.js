@@ -26,6 +26,10 @@ export class Main {
 
     this.listeners = {};
 
+    // Track last known state to detect actual changes
+    this.lastOpenTabs = [];
+    this.lastActiveTabId = null;
+
     this.render();
     this.initElements();
     this.addEventListeners();
@@ -125,10 +129,24 @@ export class Main {
   updateOnTabsChanged({ openTabs, activeTabId }) {
     if (this.isInternalLayoutChange) return;
 
+    // Check if only dirty state changed (no structural changes)
+    const currentFileIds = openTabs.map(t => t.fileId).sort().join(',');
+    const lastFileIds = this.lastOpenTabs.map(t => t.fileId).sort().join(',');
+    const filesChanged = currentFileIds !== lastFileIds;
+    const activeTabChanged = activeTabId !== this.lastActiveTabId;
+
+    // Find active pane
     const activePane = this.findNodeByFileId(activeTabId, this.paneLayout);
     if (activePane) {
         this.activePaneId = activePane.id;
         activePane.activeFileId = activeTabId;
+    }
+
+    // If only dirty states changed, just update tab indicators without full re-render
+    if (!filesChanged && !activeTabChanged) {
+        this.updateTabDirtyStates(openTabs);
+        this.lastOpenTabs = openTabs;
+        return;
     }
 
     const openFileIds = new Set(openTabs.map(t => t.fileId));
@@ -144,6 +162,37 @@ export class Main {
     }
 
     this.renderPanes({ openTabs });
+    
+    // Update last known state
+    this.lastOpenTabs = openTabs;
+    this.lastActiveTabId = activeTabId;
+  }
+
+  /**
+   * Update only the dirty state indicators on tabs without re-rendering the entire layout
+   */
+  updateTabDirtyStates(openTabs) {
+    // Update dirty state on tab elements
+    openTabs.forEach(tab => {
+        const tabEl = this.editorsWrapper.querySelector(`[data-tab-id="${tab.fileId}"]`);
+        if (tabEl) {
+            tabEl.classList.toggle('dirty', tab.isDirty);
+        }
+    });
+
+    // Also update the tabs instances if they exist
+    this.tabInstances.forEach((tabsInstance) => {
+        // Get the pane ID for this tabs instance
+        const paneEl = tabsInstance.container.closest('.pane');
+        if (paneEl) {
+            const paneId = paneEl.dataset.paneId;
+            const pane = this.findNode(n => n.id === paneId);
+            if (pane) {
+                const paneTabs = openTabs.filter(t => pane.fileIds.includes(t.fileId));
+                tabsInstance.update({ openTabs: paneTabs, activeTabId: pane.activeFileId });
+            }
+        }
+    });
   }
 
   async openOrFocusFile(project, fileId) {
@@ -313,18 +362,14 @@ export class Main {
     const activeContent = document.activeElement;
     const activeEditor = this.getActiveEditor();
     
-    // Save selection from the active editor before re-rendering
-    let savedSelection = null;
+    // Save cursor position and scroll position before re-rendering
+    let savedCursorOffset = null;
+    let savedScrollTop = null;
     if (activeEditor && activeEditor.editorEl && document.activeElement === activeEditor.editorEl) {
         const selection = window.getSelection();
         if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            savedSelection = {
-                startContainer: range.startContainer,
-                startOffset: range.startOffset,
-                endContainer: range.endContainer,
-                endOffset: range.endOffset
-            };
+            savedCursorOffset = this.getCursorOffset(activeEditor.editorEl);
+            savedScrollTop = activeEditor.editorEl.scrollTop;
         }
     }
 
@@ -382,27 +427,113 @@ export class Main {
     const hasOpenFile = this.getAllFileIdsInLayout().length > 0;
     this.welcomeMessageEl.style.display = hasOpenFile ? 'none' : 'flex';
 
-    // Restore focus to the active editor and attempt to restore selection
+    // Update last known state after re-render
+    this.lastOpenTabs = openTabs;
+    this.lastActiveTabId = this.projectState.activeTabId;
+
+    // Restore focus to the active editor and attempt to restore cursor position
     const newActiveEditor = this.getActiveEditor();
     if (newActiveEditor && newActiveEditor.editorEl) {
         newActiveEditor.editorEl.focus();
         
-        // Try to restore the saved selection
-        if (savedSelection && document.body.contains(savedSelection.startContainer)) {
-            try {
-                const selection = window.getSelection();
-                const range = document.createRange();
-                range.setStart(savedSelection.startContainer, savedSelection.startOffset);
-                range.setEnd(savedSelection.endContainer, savedSelection.endOffset);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            } catch (e) {
-                // Selection restoration failed, just maintain focus
-            }
+        // Restore cursor position by character offset
+        if (savedCursorOffset !== null) {
+            this.setCursorOffset(newActiveEditor.editorEl, savedCursorOffset);
+        }
+        
+        // Restore scroll position
+        if (savedScrollTop !== null) {
+            newActiveEditor.editorEl.scrollTop = savedScrollTop;
         }
     } else if (document.body.contains(activeContent)) {
         activeContent.focus();
     }
+  }
+
+  /**
+   * Get the cursor position as a character offset from the start of the editor
+   * @param {HTMLElement} editorEl - The editor element
+   * @returns {number} - Character offset
+   */
+  getCursorOffset(editorEl) {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return 0;
+    
+    const range = selection.getRangeAt(0);
+    let offset = 0;
+    let found = false;
+    
+    // Walk through all text nodes in the editor
+    const walker = document.createTreeWalker(
+      editorEl,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let textNode;
+    while (textNode = walker.nextNode()) {
+      if (textNode === range.startContainer) {
+        // Found the text node containing the cursor
+        offset += range.startOffset;
+        found = true;
+        break;
+      } else {
+        // Add length of this text node
+        offset += textNode.textContent.length;
+      }
+    }
+    
+    return offset;
+  }
+
+  /**
+   * Set the cursor position by character offset
+   * @param {HTMLElement} editorEl - The editor element
+   * @param {number} targetOffset - Target character offset
+   */
+  setCursorOffset(editorEl, targetOffset) {
+    let currentOffset = 0;
+    
+    // Walk through all text nodes
+    const walker = document.createTreeWalker(
+      editorEl,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let textNode;
+    while (textNode = walker.nextNode()) {
+      const nodeLength = textNode.textContent.length;
+      
+      if (currentOffset + nodeLength >= targetOffset) {
+        // The cursor should be in this text node
+        const range = document.createRange();
+        const selection = window.getSelection();
+        const offsetInNode = targetOffset - currentOffset;
+        
+        // Clamp offset to valid range
+        const safeOffset = Math.max(0, Math.min(offsetInNode, nodeLength));
+        
+        range.setStart(textNode, safeOffset);
+        range.collapse(true);
+        
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      
+      currentOffset += nodeLength;
+    }
+    
+    // If we didn't find the exact position, place cursor at the end
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editorEl);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 
   findNode(predicate, node = this.paneLayout) {
