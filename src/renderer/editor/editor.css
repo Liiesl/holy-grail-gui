@@ -180,6 +180,29 @@
     margin-right: 0.5em;
 }
 
+/* Ordered list nesting styles */
+#editor ol[type="a"] {
+    list-style-type: lower-alpha;
+}
+#editor ol[type="i"] {
+    list-style-type: lower-roman;
+}
+#editor ol[type="1"] {
+    list-style-type: decimal;
+}
+
+/* 4th level ordered list: a), b), c) format */
+#editor ol[data-list-style="parenthesis"] {
+    list-style-type: none;
+    counter-reset: parenthesis-counter;
+}
+#editor ol[data-list-style="parenthesis"] li {
+    counter-increment: parenthesis-counter;
+}
+#editor ol[data-list-style="parenthesis"] li::marker {
+    content: counter(parenthesis-counter, lower-alpha) ") ";
+}
+
 /* Code */
 #editor code {
     font-family: var(--font-mono);

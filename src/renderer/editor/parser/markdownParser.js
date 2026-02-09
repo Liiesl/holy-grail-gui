@@ -386,100 +386,200 @@ export class MarkdownParser {
   }
   
   /**
-   * Parse unordered list
+   * Parse unordered list with support for nested lists
    */
   parseUnorderedList() {
+    return this.parseList('unordered');
+  }
+
+  /**
+   * Parse ordered list with support for nested lists
+   */
+  parseOrderedList() {
+    return this.parseList('ordered');
+  }
+
+  /**
+   * Generic list parser that handles both ordered and unordered with nesting
+   */
+  parseList(type) {
     const items = [];
+    const baseIndent = this.getCurrentLineIndent();
     
     while (this.pos < this.lines.length) {
       const line = this.lines[this.pos];
       const trimmed = line.trim();
+      const currentIndent = this.getLineIndent(line);
       
-      // Check if it's a list item
-      const match = line.match(/^(\s*)[-*+](?:\s+(?:\[([ xX])\]\s+)?(.*))?$/);
-      if (!match) break;
+      // Check if this line is a list item of the correct type
+      const isUnorderedItem = type === 'unordered' && /^\s*[-*+]\s/.test(line);
+      const isOrderedItem = type === 'ordered' && /^\s*\d+\.\s/.test(line);
       
-      const [, indent, check, content] = match;
+      if (!isUnorderedItem && !isOrderedItem) break;
       
-      // Determine if it's a task item
-      let checked = null;
-      if (check !== undefined) {
-        checked = check.toLowerCase() === 'x';
+      // Check indentation - same level means new item, more means nested list, less means exit
+      if (currentIndent < baseIndent) break;
+      
+      // Parse the list item
+      const item = type === 'unordered' 
+        ? this.parseUnorderedListItem(currentIndent)
+        : this.parseOrderedListItem(currentIndent);
+      
+      if (item) {
+        items.push(item);
       }
-      
-      this.pos++;
-      
-      // Collect continuation lines
-      const itemLines = [content || ''];
-      const baseIndent = indent.length + 2;
-      
-      while (this.pos < this.lines.length) {
-        const nextLine = this.lines[this.pos];
-        
-        // Stop if we hit a blank line or new block
-        if (nextLine.trim() === '') break;
-        if (this.isBlockStart(nextLine)) break;
-        
-        // Check if it's indented enough to continue
-        if (nextLine.length > baseIndent) {
-          itemLines.push(nextLine.substring(baseIndent));
-          this.pos++;
-        } else {
-          break;
-        }
-      }
-      
-      const itemContent = itemLines.join(' ').trim();
-      const children = itemContent ? this.parseInline(itemContent) : [];
-      
-      items.push(new ListItemNode(children, checked));
     }
     
-    return new UnorderedListNode(items);
+    return type === 'unordered' 
+      ? new UnorderedListNode(items)
+      : new OrderedListNode(items);
   }
-  
+
   /**
-   * Parse ordered list
+   * Get indentation level of current line
    */
-  parseOrderedList() {
-    const items = [];
+  getCurrentLineIndent() {
+    if (this.pos >= this.lines.length) return 0;
+    return this.getLineIndent(this.lines[this.pos]);
+  }
+
+  /**
+   * Get indentation level of a specific line
+   */
+  getLineIndent(line) {
+    const match = line.match(/^(\s*)/);
+    return match ? match[1].length : 0;
+  }
+
+  /**
+   * Parse a single unordered list item with potential nested content
+   */
+  parseUnorderedListItem(indent) {
+    const line = this.lines[this.pos];
+    const match = line.match(/^(\s*)[-*+](?:\s+(?:\[([ xX])\]\s+)?(.*))?$/);
+    if (!match) return null;
+    
+    const [, , check, content] = match;
+    
+    // Determine if it's a task item
+    let checked = null;
+    if (check !== undefined) {
+      checked = check.toLowerCase() === 'x';
+    }
+    
+    this.pos++;
+    
+    // Parse the content and any nested lists
+    const children = this.parseListItemContent(indent, content || '');
+    
+    return new ListItemNode(children, checked);
+  }
+
+  /**
+   * Parse a single ordered list item with potential nested content
+   */
+  parseOrderedListItem(indent) {
+    const line = this.lines[this.pos];
+    const match = line.match(/^(\s*)\d+\.\s+(.*)$/);
+    if (!match) return null;
+    
+    const [, , content] = match;
+    
+    this.pos++;
+    
+    // Parse the content and any nested lists
+    const children = this.parseListItemContent(indent, content);
+    
+    return new ListItemNode(children);
+  }
+
+  /**
+   * Parse list item content including any nested lists
+   */
+  parseListItemContent(baseIndent, initialContent) {
+    const children = [];
+    const contentLines = [];
+    
+    // Add initial content
+    if (initialContent.trim()) {
+      contentLines.push(initialContent);
+    }
+    
+    // Collect continuation lines and check for nested lists
+    const contentIndent = baseIndent + 2;
     
     while (this.pos < this.lines.length) {
-      const line = this.lines[this.pos];
+      const nextLine = this.lines[this.pos];
+      const nextIndent = this.getLineIndent(nextLine);
+      const nextTrimmed = nextLine.trim();
       
-      const match = line.match(/^(\s*)\d+\.\s+(.*)$/);
-      if (!match) break;
-      
-      const [, indent, content] = match;
-      
-      this.pos++;
-      
-      // Collect continuation lines
-      const itemLines = [content];
-      const baseIndent = indent.length + 3;
-      
-      while (this.pos < this.lines.length) {
-        const nextLine = this.lines[this.pos];
-        
-        if (nextLine.trim() === '') break;
-        if (this.isBlockStart(nextLine)) break;
-        
-        if (nextLine.length > baseIndent) {
-          itemLines.push(nextLine.substring(baseIndent));
-          this.pos++;
-        } else {
-          break;
-        }
+      // Skip empty lines but don't break - they might be between nested items
+      if (nextTrimmed === '') {
+        this.pos++;
+        continue;
       }
       
-      const itemContent = itemLines.join(' ').trim();
-      const children = itemContent ? this.parseInline(itemContent) : [];
-      
-      items.push(new ListItemNode(children));
+      // Check for nested list (indented more than current item)
+      if (nextIndent > baseIndent) {
+        // Check if it's a nested unordered list
+        if (/^\s*[-*+]\s/.test(nextLine)) {
+          // Parse the nested list
+          const nestedList = this.parseUnorderedList();
+          // First, add any accumulated content as inline nodes
+          if (contentLines.length > 0) {
+            const content = contentLines.join(' ').trim();
+            if (content) {
+              const inlineNodes = this.parseInline(content);
+              children.push(...inlineNodes);
+            }
+            contentLines.length = 0;
+          }
+          children.push(nestedList);
+          continue;
+        }
+        
+        // Check for nested ordered list
+        if (/^\s*\d+\.\s/.test(nextLine)) {
+          const nestedList = this.parseOrderedList();
+          // First, add any accumulated content as inline nodes
+          if (contentLines.length > 0) {
+            const content = contentLines.join(' ').trim();
+            if (content) {
+              const inlineNodes = this.parseInline(content);
+              children.push(...inlineNodes);
+            }
+            contentLines.length = 0;
+          }
+          children.push(nestedList);
+          continue;
+        }
+        
+        // Regular continuation line - add to content
+        if (nextLine.length > contentIndent) {
+          contentLines.push(nextLine.substring(contentIndent));
+        } else {
+          contentLines.push(nextLine.trim());
+        }
+        this.pos++;
+      } else {
+        // Same or less indentation - end of this item
+        break;
+      }
     }
     
-    return new OrderedListNode(items);
+    // Add remaining content as inline nodes
+    if (contentLines.length > 0) {
+      const content = contentLines.join(' ').trim();
+      if (content) {
+        const inlineNodes = this.parseInline(content);
+        children.push(...inlineNodes);
+      }
+    }
+    
+    return children;
   }
+  
+
   
   /**
    * Check if line starts a new block

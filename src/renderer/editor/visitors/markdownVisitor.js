@@ -108,27 +108,38 @@ export class MarkdownVisitor {
    * Unordered list node
    */
   visitUnorderedList(node) {
-    const items = node.children.map(item => this.visit(item)).join('');
-    return items + '\n';
+    this.indentLevel += 2;
+    const items = node.children.map(item => {
+      const content = this.visit(item);
+      // Ensure each item ends with exactly one newline, no more
+      return content.replace(/\n+$/, '\n');
+    }).join('');
+    this.indentLevel -= 2;
+    // Remove any accidental blank lines that might have been created
+    return items.replace(/\n\n+/g, '\n');
   }
-  
+
   /**
    * Ordered list node
    */
   visitOrderedList(node) {
+    this.indentLevel += 2;
     const items = node.children.map((item, index) => {
       const content = this.visitListItem(item, index + 1);
-      return content;
+      // Ensure each item ends with exactly one newline, no more
+      return content.replace(/\n+$/, '\n');
     }).join('');
-    return items + '\n';
+    this.indentLevel -= 2;
+    // Remove any accidental blank lines that might have been created
+    return items.replace(/\n\n+/g, '\n');
   }
-  
+
   /**
    * List item node
    */
   visitListItem(node, index = null) {
-    let content = this.visitChildren(node);
-
+    const indent = ' '.repeat(this.indentLevel);
+    
     // Handle task item
     let prefix = '- ';
     if (node.checked !== null) {
@@ -138,15 +149,50 @@ export class MarkdownVisitor {
       prefix = `${index}. `;
     }
 
-    // Trim leading space from content to avoid double spacing after checkbox
-    content = content.replace(/^\s+/, '');
-
-    // Preserve at least one space for empty list items
-    if (content === '' && node.checked === null) {
-      content = ' ';
+    // Separate inline content from nested lists
+    let inlineContent = '';
+    let nestedLists = '';
+    
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        if (child.type === 'UnorderedList' || child.type === 'OrderedList') {
+          // Nested lists are already indented by their visit methods
+          const nestedContent = this.visit(child);
+          // Remove trailing newlines to prevent double newlines
+          nestedLists += nestedContent.replace(/\n+$/, '');
+        } else if (child.type === 'Paragraph') {
+          // Check if paragraph is just whitespace/empty
+          const paraContent = this.visit(child).trim();
+          if (paraContent) {
+            inlineContent += paraContent;
+          }
+        } else {
+          // Inline content
+          inlineContent += this.visit(child);
+        }
+      });
     }
 
-    return `${prefix}${content}\n`;
+    // Trim leading/trailing whitespace from inline content
+    inlineContent = inlineContent.trim();
+
+    // Preserve at least one space for empty list items without nested lists
+    if (inlineContent === '' && node.checked === null && !nestedLists) {
+      inlineContent = ' ';
+    }
+
+    // Combine inline content and nested lists
+    let content = inlineContent;
+    if (nestedLists) {
+      if (content) {
+        content += '\n' + nestedLists;
+      } else {
+        content = nestedLists;
+      }
+    }
+
+    // Ensure single newline at end
+    return `${indent}${prefix}${content}\n`;
   }
   
   /**

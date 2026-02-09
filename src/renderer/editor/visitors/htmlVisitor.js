@@ -9,6 +9,19 @@ import { NodeType } from '../ast/types.js';
 export class HTMLVisitor {
   constructor() {
     this.htmlParts = [];
+    this.listNestingLevel = 0;
+  }
+
+  /**
+   * Get ordered list type based on nesting level
+   * Level 0: 1, 2, 3...
+   * Level 1: a, b, c...
+   * Level 2: i, ii, iii...
+   * Level 3: a), b), c)... (requires CSS)
+   */
+  getOrderedListType(level) {
+    const types = ['1', 'a', 'i'];
+    return types[level % 3] || '1';
   }
   
   /**
@@ -112,20 +125,37 @@ export class HTMLVisitor {
    * Ordered list node
    */
   visitOrderedList(node) {
+    const type = this.getOrderedListType(this.listNestingLevel);
+    const isParenStyle = this.listNestingLevel === 3; // Level 3 = a) format
+    
+    // Track nesting level for children
+    this.listNestingLevel++;
     const items = this.visitChildren(node);
-    return `<ol>${items}</ol>`;
+    this.listNestingLevel--;
+    
+    // Add data attribute for 4th level (a) format) to use with CSS
+    const dataAttr = isParenStyle ? ' data-list-style="parenthesis"' : '';
+    return `<ol type="${type}"${dataAttr}>${items}</ol>`;
   }
   
   /**
    * List item node
    */
   visitListItem(node) {
-    let content = this.visitChildren(node);
+    let content = '';
     
     // Add checkbox for task items
     if (node.checked !== null) {
-      const checkbox = `<input type="checkbox" disabled${node.checked ? ' checked' : ''}> `;
-      content = checkbox + content;
+      content = `<input type="checkbox" disabled${node.checked ? ' checked' : ''}> `;
+    }
+    
+    // Visit all children, handling nested lists properly
+    if (node.children && node.children.length > 0) {
+      const childContent = node.children.map(child => {
+        // If child is a list, it will handle its own nesting level
+        return this.visit(child);
+      }).join('');
+      content += childContent;
     }
     
     return `<li>${content}</li>`;

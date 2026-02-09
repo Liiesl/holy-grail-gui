@@ -5,6 +5,7 @@ import { EmojiPicker } from './scmd/emojiPicker.js';
 import { TableManager } from './table.js';
 import { FindManager } from './find.js';
 import { KanbanManager } from './kanban.js';
+import { ListIndentManager } from './listIndentManager.js';
 
 export class Editor {
   constructor(projectManager, hgmd, container) {
@@ -28,6 +29,7 @@ export class Editor {
     this.emojiPicker = new EmojiPicker(this);
     this.tableManager = new TableManager(this);
     this.kanbanManager = new KanbanManager(this);
+    this.listIndentManager = new ListIndentManager(this);
     this.addEventListeners();
     this.tableManager.init();
     this.kanbanManager.init();
@@ -102,6 +104,11 @@ export class Editor {
       // NEW: Add Kanban keyboard handling
       if (this.kanbanManager.handleKeyDown(e)) {
         return; // Stop further processing if the Kanban handler took care of it
+      }
+
+      // Handle list indentation (Tab, Shift+Tab, Ctrl+], Ctrl+[)
+      if (this.listIndentManager.handleKeyDown(e)) {
+        return;
       }
 
       if (e.ctrlKey) {
