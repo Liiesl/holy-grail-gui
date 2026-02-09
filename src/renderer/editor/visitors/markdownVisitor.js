@@ -45,36 +45,14 @@ export class MarkdownVisitor {
       return '';
     }
     
-    // Block-level elements that need blank line separation
-    const blockTypes = [
-      'Paragraph', 'Heading', 'Blockquote', 'CodeBlock',
-      'UnorderedList', 'OrderedList', 'HorizontalRule',
-      'Table', 'Alert', 'Kanban'
-    ];
-    
     const parts = [];
-    let prevWasBlock = false;
-    let prevType = null;
     
     for (const child of node.children) {
-      const isBlock = blockTypes.includes(child.type);
       const content = this.visit(child);
       
       if (!content) continue;
       
-      // Add blank line between consecutive block elements
-      // But don't add extra if previous element already ends with blank lines
-      if (isBlock && prevWasBlock && parts.length > 0) {
-        const lastPart = parts[parts.length - 1];
-        // Only add separator if last part doesn't already end with 2+ newlines
-        if (!lastPart.match(/\n\n$/)) {
-          parts.push('\n');
-        }
-      }
-      
       parts.push(content);
-      prevWasBlock = isBlock;
-      prevType = child.type;
     }
     
     return parts.join('').trim();
@@ -99,7 +77,15 @@ export class MarkdownVisitor {
    */
   visitParagraph(node) {
     const content = this.visitChildren(node);
-    return content + '\n\n';
+    return content + '\n';
+  }
+  
+  /**
+   * Empty paragraph node (intentional blank line)
+   * Returns '\n\n' to create the blank line in HGMD format
+   */
+  visitEmptyParagraph(node) {
+    return '\n\n';
   }
   
   /**

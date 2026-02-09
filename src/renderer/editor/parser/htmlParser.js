@@ -2,7 +2,7 @@
 
 import {
   DocumentNode, TextNode, LineBreakNode,
-  ParagraphNode, HeadingNode, BlockquoteNode, CodeBlockNode, HorizontalRuleNode,
+  ParagraphNode, EmptyParagraphNode, HeadingNode, BlockquoteNode, CodeBlockNode, HorizontalRuleNode,
   UnorderedListNode, OrderedListNode, ListItemNode,
   BoldNode, ItalicNode, StrikethroughNode, UnderlineNode, HighlightNode, InlineCodeNode, LinkNode, CheckboxNode,
   TableNode, TableRowNode, TableCellNode,
@@ -169,14 +169,14 @@ export class HTMLParser {
   parseParagraph(element) {
     // Check for empty paragraph (editor artifact)
     if (element.innerHTML === '<br>' || element.innerHTML === '') {
-      return null; // Will be handled as spacing
+      return new EmptyParagraphNode(); // Represents intentional blank line
     }
     
     const children = this.parseChildren(element);
     
-    // If paragraph only contains a <br>, skip it
+    // If paragraph only contains a <br>, it's an empty paragraph
     if (children.length === 1 && children[0] instanceof LineBreakNode) {
-      return null;
+      return new EmptyParagraphNode();
     }
     
     return new ParagraphNode(children);

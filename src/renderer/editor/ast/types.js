@@ -11,6 +11,7 @@ export const NodeType = {
   
   // Block elements
   PARAGRAPH: 'Paragraph',
+  EMPTY_PARAGRAPH: 'EmptyParagraph',
   HEADING: 'Heading',
   BLOCKQUOTE: 'Blockquote',
   CODE_BLOCK: 'CodeBlock',

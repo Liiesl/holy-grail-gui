@@ -13,6 +13,15 @@ export class ParagraphNode extends ASTNode {
 }
 
 /**
+ * Empty paragraph node (represents intentional blank line)
+ */
+export class EmptyParagraphNode extends ASTNode {
+  constructor() {
+    super(NodeType.EMPTY_PARAGRAPH);
+  }
+}
+
+/**
  * Heading node (H1-H6)
  */
 export class HeadingNode extends ASTNode {
