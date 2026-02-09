@@ -270,13 +270,29 @@ export class HTMLParser {
   
   /**
    * Parse list items from a list element
+   * Handles nested lists that appear as siblings to li elements (browser contenteditable quirk)
    */
   parseListItems(listElement) {
     const items = [];
+    let lastItem = null;
+    
     for (const child of listElement.children) {
-      if (child.tagName.toLowerCase() === 'li') {
+      const tagName = child.tagName.toLowerCase();
+      
+      if (tagName === 'li') {
         const item = this.parseListItem(child);
-        if (item) items.push(item);
+        if (item) {
+          items.push(item);
+          lastItem = item;
+        }
+      } else if ((tagName === 'ul' || tagName === 'ol') && lastItem) {
+        // Nested list appearing as sibling to li - attach to previous item
+        const nestedList = tagName === 'ul' 
+          ? this.parseUnorderedList(child)
+          : this.parseOrderedList(child);
+        if (nestedList) {
+          lastItem.children.push(nestedList);
+        }
       }
     }
     return items;
