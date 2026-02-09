@@ -6,3 +6,9 @@
 .DS_Store
 *test*
 package-lock.json
+dev-app-update.yml
+get-hash.js
+jest.config.js
+nul
+nlpm-script.yaml
+local-update-server/
