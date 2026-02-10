@@ -65,12 +65,39 @@ export class SlashCommand {
     });
   }
 
-  show(position, triggerInfo) {
+  show(position, triggerInfo, editorRect) {
     this.triggerInfo = triggerInfo;
     this.container.classList.remove('hidden');
-    this.container.style.top = `${position.top}px`;
-    this.container.style.left = `${position.left}px`;
+    
+    // Update first to get the menu height
     this.update(triggerInfo.filter);
+    
+    // Get menu dimensions after rendering
+    const menuHeight = this.container.offsetHeight || 200;
+    const menuWidth = this.container.offsetWidth || 250;
+    
+    // Calculate vertical position - show above if not enough space below
+    let top = position.top;
+    const spaceBelow = editorRect.height - position.top;
+    const spaceAbove = position.top - position.cursorHeight;
+    
+    if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+      // Not enough space below, but enough above - show above
+      top = position.top - menuHeight - position.cursorHeight;
+    }
+    
+    // Calculate horizontal position - keep within editor bounds on the right
+    let left = position.left;
+    const spaceRight = editorRect.width - position.left;
+    
+    if (spaceRight < menuWidth) {
+      // Not enough space on the right, shift left
+      left = editorRect.width - menuWidth - 10; // 10px padding from right edge
+      if (left < 0) left = 0; // Don't go past left edge
+    }
+    
+    this.container.style.top = `${top}px`;
+    this.container.style.left = `${left}px`;
   }
 
   hide() {

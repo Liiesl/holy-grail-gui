@@ -234,10 +234,11 @@ export class Editor {
         const position = {
             top: rect.bottom - editorRect.top,
             left: rect.left - editorRect.left,
+            cursorHeight: rect.height,
         };
         
         const triggerInfo = { range: triggerRange, filter: filter };
-        this.slashCommand.show(position, triggerInfo);
+        this.slashCommand.show(position, triggerInfo, editorRect);
         return;
       }
     }
@@ -271,10 +272,11 @@ export class Editor {
         const position = {
           top: rect.bottom - editorRect.top,
           left: rect.left - editorRect.left,
+          cursorHeight: rect.height,
         };
 
         const triggerInfo = { range: triggerRange, filter: filter };
-        this.emojiPicker.show(position, triggerInfo);
+        this.emojiPicker.show(position, triggerInfo, editorRect);
         return;
       }
     }
