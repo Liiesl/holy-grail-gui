@@ -176,8 +176,34 @@
     margin-bottom: 0.25em;
 }
 /* Task list styling */
-#editor li > input[type="checkbox"] {
+#editor li > input[type="checkbox"].task-checkbox {
     margin-right: 0.5em;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    vertical-align: middle;
+    accent-color: var(--color-primary, #007AFF);
+    transition: transform 0.1s ease;
+}
+
+#editor li > input[type="checkbox"].task-checkbox:hover {
+    transform: scale(1.1);
+}
+
+#editor li > input[type="checkbox"].task-checkbox:checked {
+    opacity: 0.8;
+}
+
+/* Style for completed task items (when checkbox is checked) */
+#editor li:has(> input[type="checkbox"].task-checkbox:checked) {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+/* Ensure list items with checkboxes have proper spacing */
+#editor li:has(> input[type="checkbox"].task-checkbox) {
+    list-style-type: none;
+    margin-left: -1.2em;
 }
 
 /* Ordered list nesting styles */

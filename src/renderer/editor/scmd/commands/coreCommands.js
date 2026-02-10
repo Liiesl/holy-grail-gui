@@ -8,6 +8,7 @@ export function getCoreCommands() {
     { name: 'Paragraph', command: 'p', aliases: ['p', 'para'], description: 'Reset current line to paragraph', action: (editor) => editor.applyFormat('p') },
     { name: 'Bulleted List', command: 'ul', aliases: ['ul', 'li', 'bullet', 'list'], description: 'Create a simple bulleted list', action: (editor) => editor.applyFormat('ul') },
     { name: 'Numbered List', command: 'ol', aliases: ['ol', 'num', 'number', 'numbered'], description: 'Create an ordered list', action: (editor) => editor.applyFormat('ol') },
+    { name: 'Check List', command: 'task', aliases: ['task', 'check', 'checkbox', 'todo'], description: 'Insert a task list item', action: (editor) => editor.insertTaskListItem() },
     { name: 'Quote', command: 'blockquote', aliases: ['quote', 'blockquote', 'bq'], description: 'Create a blockquote', action: (editor) => editor.applyFormat('blockquote') },
     { name: 'Code Block', command: 'pre', aliases: ['code', 'pre', 'codeblock'], description: 'Create a code block', action: (editor) => editor.applyFormat('pre') },
     { name: 'Divider', command: 'hr', aliases: ['hr', 'divider', 'line', 'horizontal'], description: 'Insert a horizontal rule', action: (editor) => editor.applyFormat('hr') },

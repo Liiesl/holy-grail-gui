@@ -150,12 +150,12 @@ export class HTMLVisitor {
    */
   visitListItem(node) {
     let content = '';
-    
-    // Add checkbox for task items
+
+    // Add checkbox for task items (interactive - not disabled)
     if (node.checked !== null) {
-      content = `<input type="checkbox" disabled${node.checked ? ' checked' : ''}> `;
+      content = `<input type="checkbox" class="task-checkbox"${node.checked ? ' checked' : ''}> `;
     }
-    
+
     // Visit all children, handling nested lists properly
     if (node.children && node.children.length > 0) {
       const childContent = node.children.map(child => {
@@ -164,7 +164,7 @@ export class HTMLVisitor {
       }).join('');
       content += childContent;
     }
-    
+
     return `<li>${content}</li>`;
   }
   

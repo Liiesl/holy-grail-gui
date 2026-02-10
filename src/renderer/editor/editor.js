@@ -111,6 +111,45 @@ export class Editor {
         return;
       }
 
+      // Handle Enter key in task lists
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+        const selection = window.getSelection();
+        if (selection.rangeCount) {
+          const range = selection.getRangeAt(0);
+          let currentNode = range.startContainer;
+          if (currentNode.nodeType === Node.TEXT_NODE) {
+            currentNode = currentNode.parentElement;
+          }
+          const listItem = currentNode.closest('li');
+          if (listItem) {
+            const checkbox = listItem.querySelector(':scope > input[type="checkbox"].task-checkbox');
+            if (checkbox) {
+              e.preventDefault();
+              // Create new task list item
+              const newItem = document.createElement('li');
+              const newCheckbox = document.createElement('input');
+              newCheckbox.type = 'checkbox';
+              newCheckbox.className = 'task-checkbox';
+              newItem.appendChild(newCheckbox);
+              newItem.appendChild(document.createTextNode(' '));
+              
+              // Insert after current list item
+              listItem.parentNode.insertBefore(newItem, listItem.nextSibling);
+              
+              // Move cursor to new item
+              const newRange = document.createRange();
+              newRange.setStart(newItem, newItem.childNodes.length);
+              newRange.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+              
+              this.handleInput();
+              return;
+            }
+          }
+        }
+      }
+
       if (e.ctrlKey) {
         switch (e.key.toLowerCase()) {
           case 'b':
@@ -159,6 +198,14 @@ export class Editor {
     });
 
     this.floatingToolbar.addEventListener('mousedown', (e) => e.preventDefault());
+
+    // Handle checkbox changes (event delegation)
+    this.editorEl.addEventListener('change', (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox' && e.target.classList.contains('task-checkbox')) {
+        // Mark document as dirty
+        this.handleInput();
+      }
+    });
   }
 
   handleSlashCommandTrigger() {
@@ -444,5 +491,61 @@ export class Editor {
     this.editorEl.focus();
     this.handleInput();
     this.updateToolbarState();
+  }
+
+  /**
+   * Insert a task list item at the current cursor position
+   */
+  insertTaskListItem() {
+    if (this.editorEl.contentEditable === 'false') return;
+
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const listItem = document.createElement('li');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'task-checkbox';
+    listItem.appendChild(checkbox);
+    listItem.appendChild(document.createTextNode(' '));
+
+    // Check if we're in a list
+    let currentNode = range.startContainer;
+    if (currentNode.nodeType === Node.TEXT_NODE) {
+      currentNode = currentNode.parentElement;
+    }
+
+    const parentList = currentNode.closest('ul, ol');
+
+    if (parentList) {
+      // We're inside a list, insert the task item
+      const currentItem = currentNode.closest('li');
+      if (currentItem) {
+        // Convert current item to task item by adding checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'task-checkbox';
+        currentItem.insertBefore(checkbox, currentItem.firstChild);
+        currentItem.insertBefore(document.createTextNode(' '), checkbox.nextSibling);
+      } else {
+        parentList.appendChild(listItem);
+      }
+    } else {
+      // Not in a list, create a new unordered list with the task item
+      const ul = document.createElement('ul');
+      ul.appendChild(listItem);
+      range.deleteContents();
+      range.insertNode(ul);
+
+      // Move cursor into the list item
+      range.selectNodeContents(listItem);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    this.handleInput();
+    this.editorEl.focus();
   }
 }
