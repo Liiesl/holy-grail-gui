@@ -438,6 +438,15 @@ export class Editor {
     if (!this.currentProject || !this.currentFile || (!this.isDirty && !isRestore)) return;
     
     this.findManager.clearFindHighlights(); // Clear highlights before saving
+    // Sync checkbox states to attributes before serialization
+    const checkboxes = this.editorEl.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+      if (checkbox.checked) {
+        checkbox.setAttribute('checked', '');
+      } else {
+        checkbox.removeAttribute('checked');
+      }
+    });
     const htmlContent = this.editorEl.innerHTML;
     // The engine now handles escaping internally.
     const markdownContent = this.hgmd.toMarkdown(htmlContent);

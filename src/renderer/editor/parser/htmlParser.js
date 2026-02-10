@@ -332,7 +332,7 @@ export class HTMLParser {
     let checked = null;
     
     if (checkbox) {
-      checked = checkbox.hasAttribute('checked');
+      checked = checkbox.checked;
       // Remove checkbox from DOM for processing content
       checkbox.remove();
     }
