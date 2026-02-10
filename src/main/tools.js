@@ -1,8 +1,6 @@
 // src/main/tools.js
-const projectManager = require('./projectManager');
-const searchManager = require('./searchManager');
-
-// --- Tool Definitions (JSON Schema) ---
+import projectManager from './projectManager.js';
+import searchManager from './searchManager.js';
 
 const searchTool = {
   name: 'search_notes',
@@ -93,7 +91,7 @@ async function executeTool(name, args) {
     throw new Error(`Tool function '${name}' not found.`);
 }
 
-module.exports = {
+export default {
     definitions: tools,
     executeTool
 };

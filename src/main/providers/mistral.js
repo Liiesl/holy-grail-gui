@@ -1,11 +1,11 @@
 // src/main/providers/mistral.js
-const { Mistral } = require('@mistralai/mistralai');
+import { Mistral } from '@mistralai/mistralai';
 
 /**
  * Adapter for the official Mistral AI SDK.
  * Handles the conversion between the app's generic history format and Mistral's specific format.
  */
-async function sendMessage({ history, latestMessage, systemInstruction, tools, settings }) {
+export async function sendMessage({ history, latestMessage, systemInstruction, tools, settings }) {
   const apiKey = settings.mistralApiKey;
   if (!apiKey) throw new Error('Mistral API key is missing.');
 
@@ -107,4 +107,4 @@ async function sendMessage({ history, latestMessage, systemInstruction, tools, s
   };
 }
 
-module.exports = { sendMessage };
+export default { sendMessage };

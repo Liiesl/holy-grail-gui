@@ -1,7 +1,7 @@
 // src/main/providers/gemini.js
-const { GoogleGenAI } = require('@google/genai');
+import { GoogleGenAI } from '@google/genai';
 
-async function sendMessage({ history, latestMessage, systemInstruction, tools, settings, toolOutputs }) {
+export async function sendMessage({ history, latestMessage, systemInstruction, tools, settings, toolOutputs }) {
   const apiKey = settings.geminiApiKey;
   if (!apiKey) throw new Error('Gemini API key is missing.');
 
@@ -81,4 +81,4 @@ function getFunctionCalls(result) {
     }));
 }
 
-module.exports = { sendMessage };
+export default { sendMessage };

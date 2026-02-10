@@ -1,16 +1,14 @@
 // src/main/ipcHandlers.js
-const { ipcMain, app } = require('electron'); // Added app
-const projectManager = require('./projectManager');
-const searchManager = require('./searchManager'); // Import the new search manager
-const { readSettings, saveSettings } = require('./settings'); // Import settings functions
-// CHANGE: Import the new AI Manager instead of gemini.js
-const aiManager = require('./aiManager'); 
-
+import { ipcMain, app } from 'electron';
+import projectManager from './projectManager.js';
+import searchManager from './searchManager.js';
+import { readSettings, saveSettings } from './settings.js';
+import aiManager from './aiManager.js';
 /**
  * Registers all IPC handlers for the application.
  * @param {object} sessionRef - A reference object to store session data.
  */
-function registerIpcHandlers(sessionRef) {
+export function registerIpcHandlers(sessionRef) {
   // --- Project & Note Handlers ---
   ipcMain.handle('get-projects', () => {
     return projectManager.getProjects();
@@ -112,5 +110,3 @@ function registerIpcHandlers(sessionRef) {
     return projectManager.buildAllIndices();
   });
 }
-
-module.exports = { registerIpcHandlers };

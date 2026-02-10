@@ -250,13 +250,12 @@ function performSearch(query, context = {}) {
     return results;
 }
 
-module.exports = {
+export default {
     performSearch,
     clearIndex,
     addItemsToIndex,
     removeIndexForNote,
     removeIndexForProject,
-    // Expose metadata maps for testing or debugging if necessary
     _getSearchIndex_FOR_TESTING: () => searchIndex,
     _getProjectMetadata_FOR_TESTING: () => _projectMetadata,
     _getNoteMetadata_FOR_TESTING: () => _noteMetadata,

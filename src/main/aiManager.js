@@ -1,7 +1,7 @@
 // src/main/aiManager.js
-const tools = require('./tools');
-const geminiProvider = require('./providers/gemini');
-const mistralProvider = require('./providers/mistral');
+import tools from './tools.js';
+import geminiProvider from './providers/gemini.js';
+import mistralProvider from './providers/mistral.js';
 
 // Map providers string to implementation
 const PROVIDERS = {
@@ -12,7 +12,7 @@ const PROVIDERS = {
 /**
  * Main chat function that delegates to specific providers.
  */
-async function continueChat(messages, settings, eventSender) {
+export async function continueChat(messages, settings, eventSender) {
   const providerName = settings.aiProvider || 'gemini';
   const provider = PROVIDERS[providerName];
 
@@ -96,7 +96,7 @@ GUIDELINES:
             }
 
             // Update State for next loop iteration
-            
+
             if (providerName === 'gemini') {
                 // Gemini SDK Flow:
                 
@@ -167,4 +167,4 @@ GUIDELINES:
   }
 }
 
-module.exports = { continueChat };
+export default { continueChat };

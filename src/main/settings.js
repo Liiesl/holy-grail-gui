@@ -1,7 +1,11 @@
 // src/main/settings.js
-const { app } = require('electron');
-const path = require('path');
-const fs = require('fs').promises;
+import { app } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { promises as fs } from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
@@ -13,7 +17,7 @@ const CURRENT_SETTINGS_VERSION = 'v0.1.29.0';
  * Reads the application settings from the user data directory.
  * @returns {Promise<object>} - The settings object. Returns a default if not found.
  */
-async function readSettings() {
+export async function readSettings() {
   const defaults = {
     settingsVersion: 'v0.0.0.0', // Assume old settings are version 0
     projects: [],
@@ -48,7 +52,7 @@ async function readSettings() {
  * Saves the provided settings object to the user data directory.
  * @param {object} settings - The settings object to save.
  */
-async function saveSettings(settings) {
+export async function saveSettings(settings) {
   try {
     const currentSettings = await readSettings();
     // Always save with the current version number.
@@ -62,5 +66,3 @@ async function saveSettings(settings) {
     console.error('Failed to save settings:', error);
   }
 }
-
-module.exports = { readSettings, saveSettings };

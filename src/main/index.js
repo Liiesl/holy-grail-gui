@@ -1,11 +1,16 @@
 // src/main/index.js
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
-const { registerIpcHandlers } = require('./ipcHandlers');
-const { readSettings, saveSettings } = require('./settings');
-const { autoUpdater } = require('electron-updater'); // Added for auto-updates
-const log = require('electron-log'); // Recommended for electron-updater logging
-const projectManager = require('./projectManager'); // Import projectManager
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { registerIpcHandlers } from './ipcHandlers.js';
+import { readSettings, saveSettings } from './settings.js';
+import pkg from 'electron-updater'; //electron-updater is a CJS module
+const { autoUpdater } = pkg;
+import log from 'electron-log';
+import projectManager from './projectManager.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow;
 let sessionRef = { current: {} }; // Use a reference object to hold renderer state

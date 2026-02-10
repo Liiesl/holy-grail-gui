@@ -44,7 +44,6 @@ contextBridge.exposeInMainWorld('api', {
   
   // --- Gemini Chat (Updated) ---
   chatWithGemini: (messages) => ipcRenderer.invoke('chat-with-gemini', messages),
-  // --- ADD THIS LINE ---
   onChatUpdate: (callback) => ipcRenderer.on('chat-update', (event, update) => callback(update)),
 
   // --- App Info & Updates ---

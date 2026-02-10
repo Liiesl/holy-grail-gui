@@ -1,10 +1,10 @@
 // src/main/projectManager.js
-const path = require('path');
-const fs = require('fs').promises;
-const crypto = require('crypto');
-const { dialog, BrowserWindow } = require('electron');
-const { readSettings, saveSettings } = require('./settings');
-const searchManager = require('./searchManager'); // Import the new search manager
+import path from 'path';
+import { promises as fs } from 'fs';
+import crypto from 'crypto';
+import { dialog, BrowserWindow } from 'electron';
+import { readSettings, saveSettings } from './settings.js';
+import searchManager from './searchManager.js';
 
 // --- START: Indexing Logic ---
 // This section is responsible for reading data from the filesystem and
@@ -440,7 +440,6 @@ async function reorderNotes({ projectPath, noteIds, parentId }) {
     return { success: true };
 }
 
-
 async function deleteNote({ projectPath, filename }) {
     try {
         const filePath = path.join(projectPath, filename);
@@ -538,8 +537,7 @@ async function getNoteVersionContent({ projectPath, hash }) {
     return fs.readFile(objectPath, 'utf8');
 }
 
-
-module.exports = {
+export default {
   getProjects,
   addProject,
   getNotes,
@@ -548,14 +546,12 @@ module.exports = {
   createNote,
   renameNote,
   moveNote,
-  reorderNotes, // <-- ADDED EXPORT
+  reorderNotes,
   deleteNote,
   getNoteHistory,
   getNoteVersionContent,
   untrackProject,
   deleteProject,
-  // Indexing functions
   buildAllIndices,
-  // For testing purposes only. Allows checking the size of the internal index.
   _getSearchIndex_FOR_TESTING: searchManager._getSearchIndex_FOR_TESTING,
 };
